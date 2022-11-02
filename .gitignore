@@ -10,3 +10,5 @@ log/
 config.js
 .env
 dist/
+.vscode/
+*.txt

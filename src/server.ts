@@ -5,7 +5,7 @@ const cors = require('cors');
 const connect = require('connect');
 const express = require('express')
 const cookieParser = require('cookie-parser');
-import {methods, verbose, recordTxStatus, forwardTxStatusToExplorer} from './api'
+import {methods, verbose, recordTxStatus, forwardTxStatusToExplorer, initTempFiles} from './api'
 import {apiPerfLogData, apiPefLogger, setupLogEvents} from './logger';
 import authorize from './middlewares/authorize';
 import injectIP from './middlewares/injectIP';
@@ -97,6 +97,9 @@ app.use('/log',authorize, logRoute);
 app.use('/authenticate',authenticate);
 app.use(injectIP);
 app.use(server.middleware());
+
+// init temp files
+initTempFiles()
 
 updateNodeList(true).then(success => {
   setConsensorNode()

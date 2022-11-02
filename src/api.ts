@@ -13,7 +13,7 @@ import {
 } from './utils'
 import crypto from 'crypto'
 import { logEventEmitter } from "./logger";
-import { isConstructorDeclaration } from "typescript";
+import * as fs from 'fs'
 const config = require("./config") as Config
 
 export let verbose = config.verbose
@@ -76,6 +76,17 @@ async function getCurrentBlockInfo() {
         console.log('Unable to get cycle number', e)
     }
     return result
+}
+
+export async function initTempFiles() {
+  if (!fs.existsSync('./eth_sendRawTransaction.txt')) {
+    console.log(`Creating eth_sendRawTransaction.json file...`)
+    fs.writeFileSync('eth_sendRawTransaction.txt', '')
+  }
+}
+
+function recordRawTxCallerInfo(data: { callerIp: string; callerAddress: string }) {
+  fs.appendFileSync('eth_sendRawTransaction.txt', JSON.stringify(data) + '\n')
 }
 
 async function getCurrentBlock() {
@@ -544,6 +555,7 @@ export const methods = {
             console.log('Sending raw tx to /inject endpoint', new Date(now), now)
             console.log('Running sendRawTransaction', args)
         }
+        let sender: string = ''
         try {
             let raw = args[0]
             let tx: any = {
@@ -554,7 +566,7 @@ export const methods = {
 
             const txHash = bufferToHex(transaction.hash())
             const currentTxNonce = transaction.nonce.toNumber()
-            const sender = transaction.getSenderAddress().toString()
+            sender = transaction.getSenderAddress().toString()
 
             if (config.nonceValidate && txMemPool[sender] && txMemPool[sender].length > 0) {
                 let maxIteration = txMemPool[sender].length
@@ -593,6 +605,7 @@ export const methods = {
         } catch (e) {
             console.log(`Error while injecting tx to consensor`, e)
         } finally {
+            if (sender.length > 0) recordRawTxCallerInfo({ callerIp: args[1000], callerAddress: sender })
             logEventEmitter.emit('fn_end',ticket,performance.now())
         }
     },

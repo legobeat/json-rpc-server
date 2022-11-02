@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "npm run compile && node dist/server.js",
+    "debug": "npm run compile && node --inspect dist/server.js",
     "compile": "tsc -p .",
     "clean-log": "rm -rf ./log"
   },
