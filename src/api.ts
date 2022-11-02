@@ -79,6 +79,9 @@ async function getCurrentBlockInfo() {
 }
 
 export async function initTempFiles() {
+  if (!config.enableRawTxTracking) {
+    return
+  }
   if (!fs.existsSync('./eth_sendRawTransaction.txt')) {
     console.log(`Creating eth_sendRawTransaction.json file...`)
     fs.writeFileSync('eth_sendRawTransaction.txt', '')
@@ -86,6 +89,9 @@ export async function initTempFiles() {
 }
 
 function recordRawTxCallerInfo(data: { callerIp: string; callerAddress: string }) {
+  if (!config.enableRawTxTracking) {
+    return
+  }
   fs.appendFileSync('eth_sendRawTransaction.txt', JSON.stringify(data) + '\n')
 }
 
