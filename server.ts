@@ -66,6 +66,10 @@ app.get("/api/subscribe", (req: any, res: any) => {
   res.end(`Successfully changed to ${ip}:${port}`);
 });
 
+app.get("/healthcheck", (req: any, res: any) => {
+  res.send("Success");
+});
+
 const requestersList = new RequestersList(blackList);
 
 app.use((req: any, res: any, next: Function) => {
