@@ -1281,6 +1281,10 @@ export const methods = {
     if (filter) {
       updates = filter.updates;
       filter.updates = [];
+      filter.lastQuriedTimestamp = Date.now();
+      getCurrentBlock().then(block => {
+        filter.lastQueriedBlock = block.number;
+      })
     } else {
       throw new Error("filter not found");
     }
