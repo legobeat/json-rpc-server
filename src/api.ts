@@ -11,6 +11,7 @@ import {
   requestWithRetry,
   TxStatusCode,
   RequestMethod,
+  getCurrentBlockNumber,
   calculateInternalTxHash,
 } from './utils'
 import crypto from 'crypto'
@@ -67,15 +68,14 @@ async function getCurrentBlockInfo() {
   let result = { ...lastCycleInfo, nodeUrl: undefined }
 
   try {
-    if (verbose) console.log('Querying getCurrentBlockInfo from validator')
-    const res = await requestWithRetry(RequestMethod.Get, `/eth_blockNumber`)
-    const blockNumber = res.data.blockNumber
-    const timestamp = Date.now()
-    result = { nodeUrl: res.data.nodeUrl, blockNumber: blockNumber, timestamp: intStringToHex(String(timestamp)) } as any
+    if (verbose) console.log('Querying getCurrentBlockInfo')
+    const { blockNumber, timestamp } = getCurrentBlockNumber()
+
+    result = { blockNumber, timestamp } as any
     lastCycleInfo = result
     return result
   } catch (e) {
-    console.log('Unable to get cycle number', e)
+    console.log('Unable to get current block info', e)
   }
   return result
 }

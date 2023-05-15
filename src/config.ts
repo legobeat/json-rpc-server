@@ -41,7 +41,7 @@ type Config = {
   passphrase: string
   secret_key: string
   nonceValidate: boolean
-
+  BLOCK_DURATION: number
   /**
    * Consensor(node) do reject transaction with higher nonce than the correct one.
    * This value control whether rpc take knowledge of it and let the client know if the tx is rejected.
@@ -109,6 +109,7 @@ export const CONFIG: Config = {
   nonceValidate: false,
   adaptiveRejection: true,
   filterDeadNodesFromArchiver: false,
+  BLOCK_DURATION: 10,
   verbose: false,
   dashboard: {
     enabled: true,

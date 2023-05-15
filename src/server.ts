@@ -14,7 +14,8 @@ import {
   RequestersList,
   checkArchiverHealth,
   sleep,
-  cleanBadNodes
+  cleanBadNodes,
+  setGenesisTimestamp
 } from './utils'
 import { router as logRoute } from './routes/log'
 import { router as authenticate } from './routes/authenticate'
@@ -127,6 +128,7 @@ app.use(server.middleware())
 updateNodeList(true).then(() => {
   debug_info.interfaceRecordingStartTime = config.statLog ? Date.now() : 0
   debug_info.txRecordingStartTime = config.recordTxStatus ? Date.now() : 0
+  setGenesisTimestamp()
   setConsensorNode()
   setInterval(updateNodeList, config.nodelistRefreshInterval)
   setInterval(saveTxStatus, 5000)

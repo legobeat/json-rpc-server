@@ -7,6 +7,8 @@ import { CONFIG as config } from './config'
 import fs from 'fs'
 // import crypto from '@shardus/crypto-utils'
 
+let GENESIS_CYCLE_TIMESTAMP = 0
+
 const crypto = require('@shardus/crypto-utils')
 
 crypto.init('69fa4195670576c0160d660c3be36556ff8d504725be8a59b5a96509e0c994bc')
@@ -18,7 +20,9 @@ export const node = {
 
 let badNodesMap: Map<string, number> = new Map()
 
-const verbose = config.verbose
+const { verbose,  blockDuration:BLOCK_DURATION  } = config
+const BLOCK_DURATION = cycleDuration / blockProductionRate
+
 let gotArchiver = false
 let nodeList: any[] = []
 let nextIndex = 0
@@ -873,4 +877,78 @@ export function getReasonEnumCode(reason: string) {
   const code = _REASONS.get(reason.toLowerCase())
 
   return code ? code : TxStatusCode.OTHER_FAILURE
+}
+
+/**
+ * setGenesisTimestamp
+ *
+ * Fetches the genesis cycle timestamp from the archiver and saves it
+ * in memory as GENESIS_CYCLE_TIMESTAMP
+ *
+ * @throws {Error} Failed to fetch genesis cycle timestamp from archiver
+ */
+export async function setGenesisTimestamp() {
+  if (verbose) console.log('Running setGenesisTimestamp')
+  try {
+    const {
+      data: {
+        cycleInfo: [info],
+      },
+    } = await axios.get(getArchiverUrl().url + '/cycleinfo?start=0&end=0')
+    GENESIS_CYCLE_TIMESTAMP = info.start
+    console.log('Genesis Cycle Timestamp is', GENESIS_CYCLE_TIMESTAMP)
+  } catch (e) {
+    console.error(e)
+    throw new Error('Error: Unable to set Genesis Cycle Timestamp')
+  }
+}
+
+/**
+ * getBlockNumberFromTimestampS
+ *
+ * Calculates the block number from a given timestamp (in seconds).
+ *
+ * @param {number} timestampInS - Timestamp in seconds
+ * @param {number} inHex - to get the block number in hexadecimal or not
+ * @returns {Object} Object containing the block number and timestamp
+ * @property {string} timestamp - the given timestamp.
+ * @property {string} blockNumber - the block number calculated from the given timestamp.
+ *
+ * @throws {Error} Invalid Timestamp provided.
+ * @throws {Error} if the GENESIS_CYCLE_TIMESTAMP is not set.
+ */
+function getBlockNumberFromTimestampS(timestampInS: number, inHex = true) {
+  if (verbose) console.log('Running getBlockNumberFromTimestampS')
+  if (!timestampInS) throw new Error('Error in getBlockNumberFromTimestampS: Invalid timestamp!')
+  if (!GENESIS_CYCLE_TIMESTAMP) throw new Error('Genesis Cycle Timestamp is NOT SET!')
+
+  const timeSinceNetworkStart = timestampInS - GENESIS_CYCLE_TIMESTAMP
+  if (timeSinceNetworkStart < 0)
+    throw new Error('Error in getCurrentBlockInfo(): Network has not started yet')
+  const blockNumber = Math.floor(timeSinceNetworkStart / BLOCK_DURATION)
+
+  return {
+    timestamp: inHex ? intStringToHex(String(timestampInS)) : String(timestampInS),
+    blockNumber: inHex ? intStringToHex(String(blockNumber)) : String(blockNumber),
+  }
+}
+
+/**
+ * getBlockNumberFromTimestampMS
+ *
+ * Calculates the block number from a given timestamp (in milliseconds).
+ * @param {number} timestampInMS - Timestamp in milliseconds
+ * @param {number} inHex - to get the block number in hexadecimal or not
+ */
+function getBlockNumberFromTimestampMS(timestampInMS: number, inHex = true) {
+  if (verbose) console.log('Running getBlockNumberFromTimestampMS')
+  if (!timestampInMS) throw new Error('Error in getBlockNumberFromTimestampMS: Invalid timestamp!')
+
+  return getBlockNumberFromTimestampS(Math.round(timestampInMS / 1000), inHex)
+}
+
+export function getCurrentBlockNumber() {
+  if (verbose) console.log('Running getCurrentBlockNumber')
+  const currentTimestamp = Date.now()
+  return getBlockNumberFromTimestampMS(currentTimestamp)
 }
