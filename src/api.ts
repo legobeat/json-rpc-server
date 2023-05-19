@@ -872,11 +872,13 @@ export const methods = {
     if (verbose) {
       console.log('Running getBlockByHash', args)
     }
-    //getCurrentBlock handles errors, no try catch needed
-    const result = await getCurrentBlock()
-
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    let blockHash = args[0]
+    const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${blockHash}`)
+    const nodeUrl = res.data.nodeUrl
+    const result = res.data.block
+    if (verbose) console.log('BLOCK DETAIL', result)
     callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: res.data.block ? true: false}, performance.now())
   },
   eth_getBlockByNumber: async function (args: any, callback: any) {
     const api_name = 'eth_getBlockByNumber'
