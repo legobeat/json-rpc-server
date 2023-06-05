@@ -11,3 +11,4 @@ config.js
 .env
 dist/
 .idea/
+.direnv/
