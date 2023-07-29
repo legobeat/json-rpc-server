@@ -72,7 +72,8 @@ export type DetailedTxStatus = {
   nodeUrl?: string
 }
 
-let filtersMap: Map<string, Types.InternalFilter> = new Map()
+// not being used anymore after dB support was introduced for log and block filtering
+// let filtersMap: Map<string, Types.InternalFilter> = new Map()
 
 function buildLogAPIUrl(request: Types.LogQueryRequest) {
   const apiUrl = `${config.explorerUrl}/api/log`;
@@ -1294,7 +1295,7 @@ export const methods = {
       unsubscribe,
       type: Types.FilterTypes.block
     };
-    filtersMap.set(filterId.toString(), internalFilter); // inserting into filtersMap
+   
     insertReplaceFilterData(filterId.toString(), internalFilter); // inserting into filterData table in dB
 
     callback(null, filterId)
@@ -1323,14 +1324,21 @@ export const methods = {
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
 
     let filterId = args[0]
-    let internalFilter = filtersMap.get(filterId)
+    let internalFilter 
+    let result = await getFilterData(filterId)
+    if (result.rowCount != 0) {
+      internalFilter = result.rows[0].internalFilter
+    } else {
+      // throw new Error("filter not found");
+      console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
+    } // filterId not found in memory or dB
+    
     if (internalFilter == null) {
       callback(null, false)
       return
     }
 
     internalFilter.unsubscribe()
-    filtersMap.delete(filterId) // delete the filter from the filters map
     deleteFilterData(filterId) // delete the filter data from the db
 
     callback(null, true)
@@ -1373,8 +1381,8 @@ export const methods = {
       unsubscribe,
       type: Types.FilterTypes.log
     };
-    filtersMap.set(filterId.toString(), internalFilter);
-    await insertReplaceFilterData(filterId.toString(), internalFilter)
+
+    await insertReplaceFilterData(filterId.toString(), internalFilter) // inserting into filterData table in dB
 
     callback(null, filterId)
     logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
@@ -1388,24 +1396,15 @@ export const methods = {
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
 
     let filterId = args[0].toString()
-    let internalFilter: Types.InternalFilter | any | undefined = null
-    let isAvailableInMemory = false
+    let internalFilter: any // while inserting into dB the function will ensure the data being sent is of type InternalFilter
 
-    // check if available in memory
-    if (filtersMap.has(filterId)){
-      isAvailableInMemory = true
-      internalFilter = filtersMap.get(filterId.toString())
-    }
-    // check if the internalFilter hasn't been found in memory, then retrieve from dB
-    if (!isAvailableInMemory && !internalFilter) {
-      let result = await getFilterData(filterId.toString())
-      if (result.rowCount != 0) {
-        internalFilter = result.rows[0].internalFilter
-      } else {
-        // throw new Error("filter not found");
-        console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
-      } // filterId not found in memory or dB
-    }
+    let result = await getFilterData(filterId)
+    if (result.rowCount != 0) {
+      internalFilter = result.rows[0].internalFilter
+    } else {
+      // throw new Error("filter not found");
+      console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
+    } // filterId not found in memory or dB
 
     let updates = []
     if (internalFilter && internalFilter.type === Types.FilterTypes.log) {
@@ -1421,7 +1420,7 @@ export const methods = {
       let currentBlock = await getCurrentBlock()
       // this could potentially have issue because explorer server is a bit behind validator in terms of tx receipt or block number
 
-      internalFilter.filter.lastQueriedBlock = parseInt(currentBlock.number.toString()) 
+      internalFilter.filter.lastQueriedBlock = parseInt(currentBlock.number.toString())
       internalFilter.filter.lastQueriedTimestamp = Date.now()
       // changed it to internalFilter.filter because earlier a reference was passed from memory but now a copy might be passed from dB
       // hence the changes might not be reflected in the memory and we need to update the internalFilter object directly instead of logFilter
@@ -1433,17 +1432,15 @@ export const methods = {
         updates = res.data.blockHashes
         internalFilter.filter.lastQueriedBlock = res.data.toBlock
         internalFilter.filter.lastQueriedTimestamp = Date.now()
-      // changed it to internalFilter.filter because earlier a reference was passed from memory but now a copy might be passed from dB
-      // hence the changes might not be reflected in the memory and we need to update the internalFilter object directly instead of blockFilter
+        // changed it to internalFilter.filter because earlier a reference was passed from memory but now a copy might be passed from dB
+        // hence the changes might not be reflected in the memory and we need to update the internalFilter object directly instead of blockFilter
       }
     } else {
       // throw new Error("filter not found");
       console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
     }
 
-    insertReplaceFilterData(filterId, internalFilter); // updating the dB
-    if(!isAvailableInMemory) filtersMap.set(filterId, internalFilter); // inserting into map if not available in memory
-
+    insertReplaceFilterData(filterId, internalFilter); // updating the dB with the latest filter data
     if (config.verbose) console.log(`eth_getFilterChanges: filterId: ${filterId}, updates: ${updates.length}`, internalFilter, updates)
 
     callback(null, updates)
@@ -1459,24 +1456,15 @@ export const methods = {
 
     let logs = []
     let filterId = args[0].toString()
-    let internalFilter: Types.InternalFilter | any | undefined = null
-    let isAvailableInMemory = false
+    let internalFilter: any // while inserting into dB the function will ensure the data being sent is of type InternalFilter
 
-    // check if available in memory
-    if (filtersMap.has(filterId)){
-      isAvailableInMemory = true
-      internalFilter = filtersMap.get(filterId.toString())
-    }
-    // check if the internalFilter hasn't been found in memory, then retrieve from dB
-    if (!isAvailableInMemory && !internalFilter) {
-      let result = await getFilterData(filterId.toString())
-      if (result.rowCount != 0) {
-        internalFilter = result.rows[0].internalFilter
-      } else {
-        // throw new Error("filter not found");
-        console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
-      } // filterId not found in memory or dB
-    }
+    let result = await getFilterData(filterId)
+    if (result.rowCount != 0) {
+      internalFilter = result.rows[0].internalFilter
+    } else {
+      // throw new Error("filter not found");
+      console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
+    } // filterId not found in memory or dB
 
     if (internalFilter && internalFilter.type === Types.FilterTypes.log) {
       let logFilter = internalFilter.filter as Types.LogFilter
@@ -1494,9 +1482,7 @@ export const methods = {
     }
 
     if (config.verbose) console.log(`eth_getFilterLogs: filterId: ${filterId}`, logs)
-
-    if(!isAvailableInMemory) filtersMap.set(filterId, internalFilter); // inserting into map if not available in memory
-
+    
     callback(null, logs)
     logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
   },
