@@ -24,6 +24,11 @@ async function createTables() {
     'CREATE TABLE IF NOT EXISTS interface_stats ' +
       '(`id` INTEGER PRIMARY KEY AUTOINCREMENT, `api_name` VARCHAR NOT NULL, `tfinal` BIGINT, `timestamp` BIGINT, `nodeUrl` VARCHAR, `success` boolean, `reason` VARCHAR, `hash` VARCHAR)'
   )
+  await db.exec(
+    'CREATE TABLE IF NOT EXISTS filter_data ' +
+      '(`filterId` STRING PRIMARY KEY, `interalFilter` json NOT NULL)'
+  )
+  console.log("Created filterID-InternalFilter mapping table.")
 }
 
 export async function setupDatabase() {
