@@ -72,7 +72,7 @@ export const CONFIG: Config = {
 
   ip: '0.0.0.0',
   port: 8080,
-  chainId: 8082,
+  chainId: 8080,
   nodeIpInfo: {
     externalIp: '127.0.0.1',
     externalPort: 9001,
@@ -85,7 +85,7 @@ export const CONFIG: Config = {
   queryFromValidator: true,
   queryFromArchiver: false,
   explorerUrl: 'http://127.0.0.1:6001',
-  queryFromExplorer: false,
+  queryFromExplorer: true,
   rpcDataServerUrl: 'http://127.0.0.1:4445',
   generateTxTimestamp: true,
   nodelistRefreshInterval: 5000,

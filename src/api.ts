@@ -1330,7 +1330,7 @@ export const methods = {
       internalFilter = result.rows[0].internalFilter
     } else {
       // throw new Error("filter not found");
-      console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
+      console.error(`eth_uninstallFilter: filter not found: ${filterId}`)
     } // filterId not found in memory or dB
     
     if (internalFilter == null) {
@@ -1345,22 +1345,25 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
   },
   eth_newFilter: async function (args: any, callback: any) {
-    const api_name = 'eth_newFilter'
+    const api_name = 'eth_newFilter';
     const ticket = crypto
       .createHash('sha1')
       .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    let inputFilter = args[0]
-
+      .digest('hex');
+  
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now());
+  
+    let inputFilter = args[0];
+  
     if (inputFilter == null) {
-      callback(null, null)
-      return
+      callback(null, null);
+      return;
     }
+  
     const {address, topics} = parseFilterDetails(inputFilter || {});
-    const currentBlock = await getCurrentBlock()
-    const filterId = getFilterId()
+    const currentBlock = await getCurrentBlock();
+    const filterId = getFilterId();
+  
     let filterObj: Types.LogFilter = {
       id: filterId,
       address: address,
@@ -1371,80 +1374,83 @@ export const methods = {
       lastQueriedBlock: parseInt(currentBlock.number.toString()),
       createdBlock: parseInt(currentBlock.number.toString())
     };
-    if (filterObj.fromBlock === 'latest') filterObj.fromBlock = lastBlockInfo.blockNumber
-    if (filterObj.toBlock === 'latest') delete filterObj.toBlock
-    const unsubscribe = () => {
-    }
+  
+    if (filterObj.fromBlock === 'latest') filterObj.fromBlock = lastBlockInfo.blockNumber;
+    if (filterObj.toBlock === 'latest') delete filterObj.toBlock;
+  
+    const unsubscribe = () => {};
+  
     const internalFilter: Types.InternalFilter = {
       updates: [],
       filter: filterObj,
       unsubscribe,
       type: Types.FilterTypes.log
     };
-
-    await insertReplaceFilterData(filterId.toString(), internalFilter) // inserting into filterData table in dB
-
-    callback(null, filterId)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+  
+    await insertReplaceFilterData(filterId.toString(), internalFilter);
+  
+    callback(null, filterId);
+    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now());
   },
   eth_getFilterChanges: async function (args: any, callback: any) {
-    const api_name = 'eth_getFilterChanges'
+    const api_name = 'eth_getFilterChanges';
     const ticket = crypto
       .createHash('sha1')
       .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    let filterId = args[0].toString()
-    let internalFilter: any // while inserting into dB the function will ensure the data being sent is of type InternalFilter
-
-    let result = await getFilterData(filterId)
+      .digest('hex');
+  
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now());
+  
+    let filterId = args[0].toString();
+    let internalFilter: any;
+  
+    let result = await getFilterData(filterId);
     if (result.rowCount != 0) {
-      internalFilter = result.rows[0].internalFilter
+      internalFilter = result.rows[0].internalFilter;
     } else {
-      // throw new Error("filter not found");
-      console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
-    } // filterId not found in memory or dB
-
-    let updates = []
+      console.error(`eth_getFilterChanges: filter not found: ${filterId}`);
+    }
+  
+    console.log('internalFilter 1', internalFilter.filter);
+    let updates = [];
+  
     if (internalFilter && internalFilter.type === Types.FilterTypes.log) {
-      let logFilter = internalFilter.filter as Types.LogFilter
+      let logFilter = internalFilter.filter as Types.LogFilter;
       let request: Types.LogQueryRequest = {
         address: logFilter.address,
         topics: logFilter.topics,
         fromBlock: String(logFilter.lastQueriedBlock + 1),
-      }
-      console.log('filter changes request', request)
-      updates = await getLogsFromExplorer(request)
-      internalFilter.updates = []
-      let currentBlock = await getCurrentBlock()
-      // this could potentially have issue because explorer server is a bit behind validator in terms of tx receipt or block number
-
-      internalFilter.filter.lastQueriedBlock = parseInt(currentBlock.number.toString())
-      internalFilter.filter.lastQueriedTimestamp = Date.now()
-      // changed it to internalFilter.filter because earlier a reference was passed from memory but now a copy might be passed from dB
-      // hence the changes might not be reflected in the memory and we need to update the internalFilter object directly instead of logFilter
+      };
+  
+      console.log('request', request);
+      updates = await getLogsFromExplorer(request);
+      console.log('updates', request);
+      
+      internalFilter.updates = [];
+      let currentBlock = await getCurrentBlock();
+  
+      internalFilter.filter.lastQueriedBlock = parseInt(currentBlock.number.toString());
+      internalFilter.filter.lastQueriedTimestamp = Date.now();
+      console.log('internalfilter 2', internalFilter);
     } else if (internalFilter && internalFilter.type === Types.FilterTypes.block) {
-      let blockFilter = internalFilter.filter as Types.BlockFilter
-      const url = `/eth_getBlockHashes?fromBlock=${blockFilter.lastQueriedBlock + 1}`
-      const res = await requestWithRetry(RequestMethod.Get, url)
+      let blockFilter = internalFilter.filter as Types.BlockFilter;
+      const url = `/eth_getBlockHashes?fromBlock=${blockFilter.lastQueriedBlock + 1}`;
+      const res = await requestWithRetry(RequestMethod.Get, url);
+  
       if (res.data && res.data.blockHashes) {
-        updates = res.data.blockHashes
-        internalFilter.filter.lastQueriedBlock = res.data.toBlock
-        internalFilter.filter.lastQueriedTimestamp = Date.now()
-        // changed it to internalFilter.filter because earlier a reference was passed from memory but now a copy might be passed from dB
-        // hence the changes might not be reflected in the memory and we need to update the internalFilter object directly instead of blockFilter
+        updates = res.data.blockHashes;
+        internalFilter.filter.lastQueriedBlock = res.data.toBlock;
+        internalFilter.filter.lastQueriedTimestamp = Date.now();
       }
     } else {
-      // throw new Error("filter not found");
-      console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
+      console.error(`eth_getFilterChanges: filter not found: ${filterId}`);
     }
-
-    insertReplaceFilterData(filterId, internalFilter); // updating the dB with the latest filter data
-    if (config.verbose) console.log(`eth_getFilterChanges: filterId: ${filterId}, updates: ${updates.length}`, internalFilter, updates)
-
-    callback(null, updates)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+  
+    insertReplaceFilterData(filterId, internalFilter);
+    if (config.verbose) console.log(`eth_getFilterChanges: filterId: ${filterId}, updates: ${updates.length}`, internalFilter, updates);
+  
+    callback(null, updates);
+    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now());
   },
   eth_getFilterLogs: async function (args: any, callback: any) {
     const api_name = 'eth_getFilterLogs'
@@ -1463,7 +1469,7 @@ export const methods = {
       internalFilter = result.rows[0].internalFilter
     } else {
       // throw new Error("filter not found");
-      console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
+      console.error(`eth_getFilterLogs: filter not found: ${filterId}`)
     } // filterId not found in memory or dB
 
     if (internalFilter && internalFilter.type === Types.FilterTypes.log) {
@@ -1478,7 +1484,7 @@ export const methods = {
       }
       logs = await getLogsFromExplorer(request)
     } else {
-      console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
+      console.error(`eth_getFilterLogs: filter not found: ${filterId}`)
     }
 
     if (config.verbose) console.log(`eth_getFilterLogs: filterId: ${filterId}`, logs)

@@ -5,7 +5,7 @@ export const insertReplaceFilterData = async (filterId: string, filterData: Inte
   console.log('Inserting filter data into database.')
   const sql_string =
     `INSERT OR REPLACE INTO filter_data` +
-    `(filterId, interalFilter) VALUES ` +
+    `(filterId, internalFilter) VALUES ` +
     `('${filterId}', '${JSON.stringify(filterData)}')`
   return await db.exec(sql_string)
 }

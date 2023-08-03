@@ -18,7 +18,7 @@
     "@shardus/archiver-discovery": "1.1.0",
     "@shardus/crypto-utils": "4.0.4",
     "axios": "0.24.0",
-    "better-sqlite3": "7.6.2",
+    "better-sqlite3": "^8.5.0",
     "body-parser": "1.19.0",
     "connect": "3.7.0",
     "cookie-parser": "1.4.6",
@@ -47,8 +47,7 @@
     "eslint-config-prettier": "8.5.0",
     "eslint-plugin-no-unsanitized": "4.0.2",
     "eslint-plugin-security": "1.5.0",
-    "eslint-plugin-xss": "0.1.12",
-    "nodemon": "2.0.22"
+    "eslint-plugin-xss": "0.1.12"
   },
   "overrides": {
     "semver": "7.5.3",

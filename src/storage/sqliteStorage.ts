@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/explicit-function-return-type */
 import Database from 'better-sqlite3'
 import fs from 'fs'
 
@@ -16,6 +17,7 @@ async function init() {
 }
 
 async function createTables() {
+  await db.exec('DROP TABLE IF EXISTS filter_data');
   await db.exec(
     'CREATE TABLE IF NOT EXISTS transactions ' +
       '(`id` INTEGER PRIMARY KEY AUTOINCREMENT, `hash` VARCHAR NOT NULL UNIQUE, `type` VARCHAR, `to` VARCHAR, `from` VARCHAR, `injected` BOOLEAN, `accepted` NUMBER NOT NULL,`reason` VARCHAR, `ip` VARCHAR, `timestamp` BIGINT, `nodeUrl` VARCHAR)'
@@ -26,7 +28,7 @@ async function createTables() {
   )
   await db.exec(
     'CREATE TABLE IF NOT EXISTS filter_data ' +
-      '(`filterId` STRING PRIMARY KEY, `interalFilter` json NOT NULL)'
+      '(`filterId` STRING PRIMARY KEY, `internalFilter` json NOT NULL)'
   )
   console.log("Created filterID-InternalFilter mapping table.")
 }
