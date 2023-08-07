@@ -1,7 +1,7 @@
 import axios from 'axios'
 import WebSocket from 'ws'
 import { serializeError } from 'eth-rpc-errors'
-import { bufferToHex, keccak256 } from 'ethereumjs-util'
+import { BN, bufferToHex, keccak256 } from 'ethereumjs-util'
 import {
   calculateInternalTxHash,
   getAccount,
@@ -31,6 +31,7 @@ import { evmLogProvider_ConnectionStream } from './websocket/distributor'
 import * as Types from './types'
 
 export const verbose = config.verbose
+const maxUint256 = new BN(2).pow(new BN(256)).sub(new BN(1))
 
 const lastCycleCounter = '0x0'
 let lastBlockInfo = {
@@ -234,7 +235,11 @@ function injectAndRecordTx(txHash: string, tx: any, args: any) {
       .then((response) => {
         const injectResult: InjectResponse = response.data
 
-        if (injectResult && injectResult.success === false && injectResult.reason.includes('Transaction nonce')) {
+        if (
+          injectResult &&
+          injectResult.success === false &&
+          injectResult.reason.includes('Transaction nonce')
+        ) {
           nonceFailCount += 1
         }
 
@@ -971,21 +976,49 @@ export const methods = {
       .update(api_name + Math.random() + Date.now())
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running estimateGas', args)
+
+    console.log('Running eth_estimateGas', args)
+
+    const callObj = args[0]
+    if (!callObj.from) {
+      callObj['from'] = '0x2041B9176A4839dAf7A4DcC6a97BA023953d9ad9'
     }
-    // const result = '0x1C9C380' // 30 M gas
-    const result = '0x2DC6C0' // 3 M gas
+    console.log('callObj', callObj)
+
+    let nodeUrl
     try {
-      //   const res = await axios.post(`${getBaseUrl()}/eth_estimateGas`, args[0])
-      //   const gasUsed = res.data.result
-      //   if(verbose) console.log('Gas used', gasUsed)
-      //if(gasUsed) result = '0x' + gasUsed
+      const res = await requestWithRetry(RequestMethod.Post, `/contract/estimateGas`, callObj)
+      console.log(res.data)
+      nodeUrl = res.data.nodeUrl
+      if (verbose) console.log('contract eth_estimateGas res.data', callObj, res.data.nodeUrl, res.data)
+      if (res.data == null) {
+        logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+        callback(errorBusy)
+        return
+      }
+      if (verbose) console.log('estimateGas from', res.data.nodeUrl, JSON.stringify(res.data))
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
+
+      if (res.data.result?.error) {
+        if (config.overrideEstimateGasError && new BN(config.overrideEstimateGasError, 16).gt(new BN(0))) {
+          callback(null, `0x${config.overrideEstimateGasError}`)
+          return
+        } else {
+          callback(res.data.result.error)
+          return
+        }
+      }
+
+      let estimateAsBn = new BN(res.data.estimateGas, 16)
+      if (estimateAsBn.lt(maxUint256)) {
+        estimateAsBn = estimateAsBn.mul(new BN(105)).div(new BN(100))
+      }
+      callback(null, `0x${estimateAsBn.toString(16)}`)
     } catch (e) {
-      console.log('Estimate gas error', e)
+      console.log(`Error while making an eth call`, e)
+      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+      callback(errorBusy)
     }
-    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-    callback(null, result)
   },
   eth_getBlockByHash: async function (args: any, callback: any) {
     const api_name = 'eth_getBlockByHash'

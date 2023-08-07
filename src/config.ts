@@ -30,6 +30,7 @@ type Config = {
   generateTxTimestamp: boolean
   nodelistRefreshInterval: number
   defaultRequestRetry: number
+  overrideEstimateGasError: string
   defaultRequestTimeout: any
   recordTxStatus: boolean
   rateLimit: boolean
