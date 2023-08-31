@@ -918,10 +918,38 @@ export function parseFilterDetails(filter: any) {
   return { address: addresses[0], topics }
 }
 
+async function fetchQueryExpb(query: string, maxRetries = 5) {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      const response = await axios.get(query)
+
+      // if response indicates failure
+      if (!response.data.success) {
+        if (i === maxRetries) {
+          throw new Error(`Failed to fetch after ${maxRetries} attempts: ${response.data.error}`)
+        }
+
+        // wait for a bit before retrying
+        await new Promise((resolve) => setTimeout(resolve, Math.pow(2, i) * 1000))
+        continue
+      }
+
+      return response
+    } catch (error) {
+      // if max attempts reached, rethrow the error
+      if (i === maxRetries) {
+        throw error
+      }
+
+      // wait for a bit before retrying
+      await new Promise((resolve) => setTimeout(resolve, Math.pow(2, i) * 1000))
+    }
+  }
+}
+
 async function fetchTxReceipt(explorerUrl: string, txHash: string) {
   const apiQuery = `${explorerUrl}/api/transaction?txHash=${txHash}`
-  const txId = await axios
-    .get(apiQuery)
+  const txId = await fetchQueryExpb(apiQuery)
     .then((response) => {
       if (!response) {
         throw new Error('Failed to fetch transaction')
