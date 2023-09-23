@@ -4,7 +4,7 @@
 
 ## Docker setup
 
-> Make sure necessary components which are required to run explore are running by running smoke testing stack and siable port `8080`
+> Make sure necessary components which are required to run json-rpc-server are smoke testing stack in networking mode host
 
 Start json-rpc-server$$
 
