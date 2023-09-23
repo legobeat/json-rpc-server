@@ -1,0 +1,18 @@
+---
+version: '3'
+services:
+  json-rpc-server:
+    image: shardus/json-rpc-server:dev
+    build:
+      context: .
+    restart: unless-stopped
+    network_mode: host
+    configs:
+      - source: archiverconfig
+        uid: node
+        gid: node
+        target: /home/node/explorer/archiverConfig.json
+
+configs:
+  archiverconfig:
+    file: ./archiverConfig.json
