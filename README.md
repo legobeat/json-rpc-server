@@ -2,6 +2,32 @@
 
 `npm run start`
 
+## Docker setup
+
+> Make sure necessary components which are required to run explore are running by running smoke testing stack and siable port `8080`
+
+Start json-rpc-server$$
+
+```shell
+# Run services in attach mode
+docker compose up
+# OR
+# Run services in detach mode
+docker compose up -d
+```
+
+Check the logs
+
+```shell
+docker compose logs -f
+```
+
+Clean the setup
+
+```shell
+docker compose down
+```
+
 ## DEBUG endpoints
 
 These api are protected preventing general public to wiping out debug data to authenticate use `/authenticate/:passphrase`. `passphrase` is set in `config.ts` config file or within the system env variable.
