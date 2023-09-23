@@ -12,7 +12,7 @@ SHELL [ "/bin/bash", "-cex" ]
 ENV NODE_ENV=${NODE_ENV}
 
 # Create app directory
-WORKDIR /home/node/json-rpc-server
+WORKDIR /home/node/app
 
 # Bundle app source
 COPY --chown=node:node  . .

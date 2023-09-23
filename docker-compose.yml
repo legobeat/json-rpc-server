@@ -11,7 +11,7 @@ services:
       - source: archiverconfig
         uid: node
         gid: node
-        target: /home/node/explorer/archiverConfig.json
+        target: /home/node/app/archiverConfig.json
 
 configs:
   archiverconfig:
