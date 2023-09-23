@@ -9,9 +9,7 @@ services:
     network_mode: host
     configs:
       - source: archiverconfig
-        uid: node
-        gid: node
-        target: /home/node/app/archiverConfig.json
+        target: /app/archiverConfig.json
 
 configs:
   archiverconfig:
