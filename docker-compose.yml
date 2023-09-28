@@ -2,8 +2,20 @@
 version: '3'
 services:
   json-rpc-server:
-    image: shardus/json-rpc-server:dev
+    image: shardeum/json-rpc-server:dev${BUILD_NUMBER:--local}
+    container_name: smoke-test-json-rpc-server-${BUILD_NUMBER:-local}
     build:
       context: .
     restart: unless-stopped
-    network_mode: host
+    # network_mode: host
+    #     configs:
+    #       - source: archiverconfig
+    #         target: /app/archiverConfig.json
+
+    # configs:
+    #   archiverconfig:
+    #     file: ./archiverConfig.json
+
+networks:
+  smoke-test:
+    name: smoke-test-${BUILD_NUMBER:-local}
