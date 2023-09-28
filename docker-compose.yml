@@ -7,6 +7,8 @@ services:
     build:
       context: .
     restart: unless-stopped
+    networks:
+      smoke-test: {}
     # network_mode: host
     #     configs:
     #       - source: archiverconfig
