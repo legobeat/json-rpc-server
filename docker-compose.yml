@@ -7,10 +7,3 @@ services:
       context: .
     restart: unless-stopped
     network_mode: host
-    configs:
-      - source: archiverconfig
-        target: /app/archiverConfig.json
-
-configs:
-  archiverconfig:
-    file: ./archiverConfig.json
