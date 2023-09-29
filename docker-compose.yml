@@ -20,4 +20,5 @@ services:
 
 networks:
   smoke-test:
+    external: true # use exising network
     name: smoke-test-${BUILD_NUMBER:-local}
