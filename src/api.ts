@@ -1176,6 +1176,40 @@ export const methods = {
       performance.now()
     )
   },
+  eth_getBlockReceipts: async function (args: any, callback: any) {
+    const api_name = 'eth_getBlockReceipts'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+    if (verbose) {
+      console.log('Running getBlockReceipts', args)
+    }
+    let blockNumber = args[0]
+    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
+    const explorerUrl = config.explorerUrl
+    const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
+    if (verbose) {
+      console.log('url', `${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
+      console.log('res', JSON.stringify(res.data))
+    }
+
+    let result = []
+    for (let transaction of res.data.transactions) {
+      result.push(transaction.wrappedEVMAccount.readableReceipt)
+    }
+
+    const nodeUrl = config.explorerUrl
+    if (verbose) console.log('BLOCK RECEIPTS DETAIL', result)
+    callback(null, result)
+    logEventEmitter.emit(
+      'fn_end',
+      ticket,
+      { nodeUrl, success: res.data.transactions ? true : false },
+      performance.now()
+    )
+  },
   eth_getTransactionByHash: async function (args: any, callback: any) {
     const api_name = 'eth_getTransactionByHash'
     const ticket = crypto
