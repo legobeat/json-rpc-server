@@ -82,7 +82,66 @@ export type DetailedTxStatus = {
   nodeUrl?: string
 }
 
+function hexStrToInt(hexStr: string) {
+  return parseInt(hexStr.slice(2), 16)
+}
+
 let filtersMap: Map<string, Types.InternalFilter> = new Map()
+
+function extractTransactionObject(bigTransaction: any, transactionIndexArg: number) {
+  if (bigTransaction) {
+    return {
+      blockHash: bigTransaction.wrappedEVMAccount.readableReceipt.blockHash,
+      blockNumber: bigTransaction.wrappedEVMAccount.readableReceipt.blockNumber,
+      from: bigTransaction.wrappedEVMAccount.readableReceipt.from,
+      gas:
+        '0x' +
+        (
+          hexStrToInt(bigTransaction.wrappedEVMAccount.readableReceipt.gasUsed) +
+          hexStrToInt(bigTransaction.wrappedEVMAccount.readableReceipt.gasRefund)
+        ).toString(),
+      gasPrice: bigTransaction.wrappedEVMAccount.readableReceipt.gasPrice,
+      maxFeePerGas: undefined,
+      maxPriorityFeePerGas: undefined,
+      hash: bigTransaction.txHash,
+      input: '',
+      nonce: bigTransaction.wrappedEVMAccount.readableReceipt.nonce,
+      to: bigTransaction.wrappedEVMAccount.readableReceipt.to,
+      transactionIndex: '0x' + transactionIndexArg.toString(16),
+      value: bigTransaction.wrappedEVMAccount.readableReceipt.value,
+      type: bigTransaction.wrappedEVMAccount.readableReceipt.type,
+      chainId: bigTransaction.wrappedEVMAccount.readableReceipt.chainId,
+      v: bigTransaction.wrappedEVMAccount.readableReceipt.v,
+      r: bigTransaction.wrappedEVMAccount.readableReceipt.r,
+      s: bigTransaction.wrappedEVMAccount.readableReceipt.s,
+    }
+  } else {
+    return null
+  }
+}
+
+function extractTransactionReceiptObject(bigTransaction: any, transactionIndexArg: number) {
+  if (bigTransaction) {
+    return {
+      blockHash: bigTransaction.wrappedEVMAccount.readableReceipt.blockHash,
+      blockNumber: bigTransaction.wrappedEVMAccount.readableReceipt.blockNumber,
+      contractAddress: bigTransaction.wrappedEVMAccount.readableReceipt.contractAddress,
+      cumulativeGasUsed: bigTransaction.wrappedEVMAccount.readableReceipt.cumulativeGasUsed,
+      effectiveGasPrice: bigTransaction.wrappedEVMAccount.readableReceipt.gasPrice,
+      from: bigTransaction.wrappedEVMAccount.readableReceipt.from,
+      gasUsed: bigTransaction.wrappedEVMAccount.readableReceipt.gasUsed,
+      logs: bigTransaction.wrappedEVMAccount.readableReceipt.logs,
+      logsBloom: bigTransaction.wrappedEVMAccount.readableReceipt.logsBloom,
+      status: bigTransaction.wrappedEVMAccount.readableReceipt.status,
+      to: bigTransaction.wrappedEVMAccount.readableReceipt.to,
+      transactionHash: bigTransaction.txHash,
+      transactionIndex: '0x' + transactionIndexArg.toString(16),
+      type: bigTransaction.transactionType,
+    }
+  } else {
+    return null
+  }
+}
 
 function buildLogAPIUrl(request: Types.LogQueryRequest) {
   const apiUrl = `${config.explorerUrl}/api/log`
@@ -651,13 +710,38 @@ export const methods = {
       .update(api_name + Math.random() + Date.now())
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
     if (verbose) {
-      console.log('Running getBlockTransactionCountByHash', args)
+      console.log('Running eth_getBlockTransactionCountByHash', args)
     }
-    const result = '0xb'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+    let blockHash = args[0]
+    if (config.queryFromValidator && config.queryFromExplorer) {
+      const explorerUrl = config.explorerUrl
+      if (blockHash === 'latest') {
+        const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockHash`)
+        blockHash = res.data.latestBlockHash
+      }
+      const res = await axios.get(`${explorerUrl}/api/transaction?blockHash=${blockHash}`)
+      if (verbose) {
+        console.log('url', `${explorerUrl}/api/transaction?blockHash=${blockHash}`)
+        console.log('res', JSON.stringify(res.data))
+      }
+
+      let result = '0x' + res.data.transactions.length.toString(16)
+
+      const nodeUrl = config.explorerUrl
+      if (verbose) console.log('BLOCK TRANSACTIONS COUNT DETAIL', result)
+      callback(null, result)
+      logEventEmitter.emit(
+        'fn_end',
+        ticket,
+        { nodeUrl, success: res.data.transactions.length ? true : false },
+        performance.now()
+      )
+    } else {
+      console.log('queryFromValidator and/or queryFromExplorer turned off. Could not process request')
+      callback(null, [])
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+    }
   },
   eth_getBlockTransactionCountByNumber: async function (args: any, callback: any) {
     const api_name = 'eth_getBlockTransactionCountByNumber'
@@ -667,11 +751,38 @@ export const methods = {
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
     if (verbose) {
-      console.log('Running getBlockTransactionCountByNumber', args)
+      console.log('Running eth_getBlockTransactionCountByNumber', args)
     }
-    const result = '0xa'
-    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-    callback(null, result)
+    let blockNumber = args[0]
+    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
+    if (config.queryFromValidator && config.queryFromExplorer) {
+      const explorerUrl = config.explorerUrl
+      if (blockNumber === 'latest') {
+        const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockNumber`)
+        blockNumber = res.data.latestBlockNumber
+      }
+      const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
+      if (verbose) {
+        console.log('url', `${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
+        console.log('res', JSON.stringify(res.data))
+      }
+
+      let result = '0x' + res.data.transactions.length.toString(16)
+
+      const nodeUrl = config.explorerUrl
+      if (verbose) console.log('BLOCK TRANSACTIONS COUNT DETAIL', result)
+      callback(null, result)
+      logEventEmitter.emit(
+        'fn_end',
+        ticket,
+        { nodeUrl, success: res.data.transactions.length ? true : false },
+        performance.now()
+      )
+    } else {
+      console.log('queryFromExplorer turned off. Could not process request')
+      callback(null, [])
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+    }
   },
   eth_getUncleCountByBlockHash: async function (args: any, callback: any) {
     const api_name = 'eth_getUncleCountByBlockHash'
@@ -1176,6 +1287,109 @@ export const methods = {
       performance.now()
     )
   },
+  eth_getBlockReceipts: async function (args: any, callback: any) {
+    const api_name = 'eth_getBlockReceipts'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+    if (verbose) {
+      console.log('Running getBlockReceipts', args)
+    }
+    let blockNumber = args[0]
+    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
+    if (config.queryFromExplorer) {
+      const explorerUrl = config.explorerUrl
+      const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
+      if (verbose) {
+        console.log('url', `${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
+        console.log('res', JSON.stringify(res.data))
+      }
+
+      let index = 0
+      let result = []
+      for (let transaction of res.data.transactions) {
+        result.push(extractTransactionReceiptObject(transaction, index))
+        index++
+      }
+
+      const nodeUrl = config.explorerUrl
+      if (verbose) console.log('BLOCK RECEIPTS DETAIL', result)
+      callback(null, result)
+      logEventEmitter.emit(
+        'fn_end',
+        ticket,
+        { nodeUrl, success: res.data.transactions ? true : false },
+        performance.now()
+      )
+    } else {
+      console.log('queryFromExplorer turned off. Could not process request')
+      callback(null, [])
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+    }
+  },
+  eth_feeHistory: async function (args: any, callback: any) {
+    const api_name = 'eth_feeHistory'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+    if (verbose) {
+      console.log('Running eth_feeHistory', args)
+    }
+    const blockCount = args[0]
+    let newestBlock = args[1]
+    const rewardPercentiles = args[2]
+
+    let result: {
+      oldestBlock: string
+      baseFeePerGas: any[]
+      gasUsedRatio: any[]
+      reward: number
+    }
+
+    result = {
+      oldestBlock: '',
+      baseFeePerGas: [],
+      gasUsedRatio: [],
+      reward: 0,
+    }
+
+    if (config.queryFromValidator && config.queryFromExplorer) {
+      const explorerUrl = config.explorerUrl
+      if (newestBlock === 'latest') {
+        const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockNumber`)
+        newestBlock = res.data.latestBlockNumber
+      }
+      for (let i = 0; i < blockCount; i++) {
+        let blockNumber = newestBlock - i
+        const resBlock = await requestWithRetry(
+          RequestMethod.Get,
+          `/eth_getBlockByNumber?blockNumber=${blockNumber}`
+        )
+        console.log(`block:`)
+        console.dir(resBlock.data.block, { depth: null })
+        result.gasUsedRatio.unshift(
+          hexStrToInt(resBlock.data.block.gasUsed) / hexStrToInt(resBlock.data.block.gasLimit)
+        )
+
+        const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
+        let gasPrices = []
+        for (const transaction of res.data.transactions) {
+          gasPrices.push(transaction.wrappedEVMAccount.readableReceipt.gasPrice)
+        }
+        result.baseFeePerGas.push(gasPrices)
+
+        if (blockNumber === newestBlock - blockCount + 1) {
+          result.oldestBlock = '0x' + blockNumber.toString(16)
+        }
+      }
+    }
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
   eth_getTransactionByHash: async function (args: any, callback: any) {
     const api_name = 'eth_getTransactionByHash'
     const ticket = crypto
@@ -1300,11 +1514,40 @@ export const methods = {
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
     if (verbose) {
-      console.log('Running getTransactionByBlockHashAndIndex', args)
+      console.log('Running eth_getTransactionByBlockHashAndIndex', args)
     }
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+    let blockHash = args[0]
+    const index = parseInt(args[1], 16)
+    //if (blockHash !== 'latest') blockHash = parseInt(blockHash, 16)
+    if (config.queryFromValidator && config.queryFromExplorer) {
+      const explorerUrl = config.explorerUrl
+      if (blockHash === 'latest') {
+        const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockHash`)
+        console.log(`res is ${res}`)
+        blockHash = res.data.latestBlockHash
+      }
+      const res = await axios.get(`${explorerUrl}/api/transaction?blockHash=${blockHash}`)
+      if (verbose) {
+        console.log('url', `${explorerUrl}/api/transaction?blockHash=${blockHash}`)
+        console.log('res', JSON.stringify(res.data))
+      }
+
+      let result = extractTransactionObject(res.data.transactions[index], index)
+
+      const nodeUrl = config.explorerUrl
+      if (verbose) console.log('TRANSACTION DETAIL', result)
+      callback(null, result)
+      logEventEmitter.emit(
+        'fn_end',
+        ticket,
+        { nodeUrl, success: res.data.transactions.length ? true : false },
+        performance.now()
+      )
+    } else {
+      console.log('queryFromValidator and/or queryFromExplorer turned off. Could not process request')
+      callback(null, [])
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+    }
   },
   eth_getTransactionByBlockNumberAndIndex: async function (args: any, callback: any) {
     const api_name = 'eth_getTransactionByBlockNumberAndIndex'
@@ -1314,11 +1557,35 @@ export const methods = {
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
     if (verbose) {
-      console.log('Running getTransactionByBlockNumberAndIndex', args)
+      console.log('Running eth_getTransactionByBlockNumberAndIndex', args)
     }
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+    let blockNumber = args[0]
+    const index = parseInt(args[1], 16)
+    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
+    if (config.queryFromExplorer) {
+      const explorerUrl = config.explorerUrl
+      const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
+      if (verbose) {
+        console.log('url', `${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
+        console.log('res', JSON.stringify(res.data))
+      }
+
+      let result = extractTransactionObject(res.data.transactions[index], index)
+
+      const nodeUrl = config.explorerUrl
+      if (verbose) console.log('TRANSACTION DETAIL', result)
+      callback(null, result)
+      logEventEmitter.emit(
+        'fn_end',
+        ticket,
+        { nodeUrl, success: res.data.transactions.length ? true : false },
+        performance.now()
+      )
+    } else {
+      console.log('queryFromExplorer turned off. Could not process request')
+      callback(null, [])
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+    }
   },
   eth_getTransactionReceipt: async function (args: any, callback: any) {
     const api_name = 'eth_getTransactionReceipt'
