@@ -1481,8 +1481,25 @@ export const methods = {
     if (verbose) {
       console.log('Running newPendingTransactionFilter', args)
     }
-    const result = '0x1'
-    callback(null, result)
+  
+    const currentBlock = await getCurrentBlock()
+    const filterId = getFilterId()
+    const filterObj: Types.PendingTransactionFilter = {
+      id: filterId,
+      lastQueriedTimestamp: Date.now(),
+      lastQueriedBlock: parseInt(currentBlock.number.toString()),
+      createdBlock: parseInt(currentBlock.number.toString()),
+    }
+    const unsubscribe = () => {}
+    const internalFilter: Types.InternalFilter = {
+      updates: [],
+      filter: filterObj,
+      unsubscribe,
+      type: Types.FilterTypes.pendingTransaction,
+    }
+    filtersMap.set(filterId.toString(), internalFilter)
+  
+    callback(null, filterId)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
   eth_uninstallFilter: async function (args: any, callback: any) {
