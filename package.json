@@ -4,6 +4,7 @@
   "description": "JSON RPC server for Shardeum",
   "main": "src/server.js",
   "scripts": {
+    "collector:db_migrate": "ts-node src/collector/migration.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "npm run compile && node dist/src/server.js",
     "dev": "nodemon",
