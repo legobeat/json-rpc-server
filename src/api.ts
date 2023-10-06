@@ -1481,7 +1481,7 @@ export const methods = {
     if (verbose) {
       console.log('Running newPendingTransactionFilter', args)
     }
-  
+
     const currentBlock = await getCurrentBlock()
     const filterId = getFilterId()
     const filterObj: Types.PendingTransactionFilter = {
@@ -1498,7 +1498,7 @@ export const methods = {
       type: Types.FilterTypes.pendingTransaction,
     }
     filtersMap.set(filterId.toString(), internalFilter)
-  
+
     callback(null, filterId)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
