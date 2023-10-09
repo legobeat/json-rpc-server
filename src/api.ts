@@ -1188,27 +1188,37 @@ export const methods = {
     }
     let blockNumber = args[0]
     if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
-    const explorerUrl = config.explorerUrl
-    const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
-    if (verbose) {
-      console.log('url', `${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
-      console.log('res', JSON.stringify(res.data))
-    }
+    if (config.queryFromExplorer) {
+      const explorerUrl = config.explorerUrl
+      const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
+      if (verbose) {
+        console.log('url', `${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
+        console.log('res', JSON.stringify(res.data))
+      }
 
-    let result = []
-    for (let transaction of res.data.transactions) {
-      result.push(transaction.wrappedEVMAccount.readableReceipt)
-    }
+      let result = []
+      for (let transaction of res.data.transactions) {
+        result.push(transaction.wrappedEVMAccount.readableReceipt)
+      }
 
-    const nodeUrl = config.explorerUrl
-    if (verbose) console.log('BLOCK RECEIPTS DETAIL', result)
-    callback(null, result)
-    logEventEmitter.emit(
-      'fn_end',
-      ticket,
-      { nodeUrl, success: res.data.transactions ? true : false },
-      performance.now()
-    )
+      const nodeUrl = config.explorerUrl
+      if (verbose) console.log('BLOCK RECEIPTS DETAIL', result)
+      callback(null, result)
+      logEventEmitter.emit(
+        'fn_end',
+        ticket,
+        { nodeUrl, success: res.data.transactions ? true : false },
+        performance.now()
+      )
+    } else {
+      console.log('queryFromExplorer turned off. Could not process request')
+      callback(null, [])
+      logEventEmitter.emit(
+        'fn_end',
+        ticket,
+        performance.now()
+      )
+    }
   },
   eth_getTransactionByHash: async function (args: any, callback: any) {
     const api_name = 'eth_getTransactionByHash'
