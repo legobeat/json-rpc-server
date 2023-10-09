@@ -1216,6 +1216,7 @@ export const methods = {
       logEventEmitter.emit(
         'fn_end',
         ticket,
+        { success: true },
         performance.now()
       )
     }
