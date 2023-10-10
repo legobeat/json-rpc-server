@@ -1,43 +1,32 @@
 import Database from 'better-sqlite3'
-import fs from 'fs'
-import IDX_COLLECTOR_CONFIG, {DB} from './config'
-
-export const db: Sqlite3Adapter | PostgresAdapter = (()=>{
-  if (IDX_COLLECTOR_CONFIG.database.type === DB.SQLITE) {
-    return new Sqlite3Adapter(IDX_COLLECTOR_CONFIG.database.disk_path)
-  }
-  else if (IDX_COLLECTOR_CONFIG.database.type === DB.POSTGRESQL) {
-    return new PostgresAdapter(
-      IDX_COLLECTOR_CONFIG.database.username, 
-      IDX_COLLECTOR_CONFIG.database.password, 
-      IDX_COLLECTOR_CONFIG.database.host, 
-      IDX_COLLECTOR_CONFIG.database.port, 
-      IDX_COLLECTOR_CONFIG.database.name
-    )
-  }
-  else{
-    throw new Error('Database type not supported.')
-  }
-})();
+import IDX_COLLECTOR_CONFIG from './config'
+import { verbose } from './index'
 
 class Sqlite3Adapter{
   db: any
 
   constructor(path: string) {
-    let db = null;
-    const dir = path.substring(0, path.lastIndexOf('/'))
-    console.log(dir)
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, {recursive: true})
-    }
-    db = new Database(path)
-    db.pragma('journal_mode = WAL')
-    console.log('Database initialized.')
-    this.db = db
+      const db = new Database(path)
+      console.log('Collector Database Attached')
+      this.db = db
   }
 
   exec(sql: string): void{
     this.db.exec(sql)
+  }
+
+  async getReadableReceiptByHash(hash: string): Promise<readableReceipt | null> {
+    try{
+      const txHash = hash;
+      const { txId } = await this.db.prepare('SELECT txId FROM originalTxsData2 WHERE txHash = ?').get(txHash)
+      let { receipt } = await this.db.prepare('SELECT receipt FROM receipts WHERE receiptId = ?').get(txId)
+      receipt = JSON.parse(receipt)
+      verbose(4, `local_receipt sourced: ${JSON.stringify(receipt.data.readableReceipt)}`)
+      return receipt.data.readableReceipt
+    }catch(e){
+      verbose(1, `Error: ${e}`)
+      return null
+    }
   }
 
   prepare(sql: string): any {
@@ -46,19 +35,23 @@ class Sqlite3Adapter{
 
 }
 
-class PostgresAdapter{
-  db: never
+export const collectorDatabase: Sqlite3Adapter = new Sqlite3Adapter(IDX_COLLECTOR_CONFIG.database.disk_path)
 
-  constructor(username: string, password: string, host: string, port: number, database: string) {
-    throw new Error('Not implemented.')
-  }
-
-  exec(sql: string): void{
-    throw new Error('Not implemented.')
-  }
-
-  prepare(sql: string): any{
-    throw new Error('Not implemented.')
-  }
-
+type readableReceipt = {
+  blockHash: string
+  blockNumber: string
+  from: string
+  gas: string
+  gasPrice: string
+  hash: string
+  input: string
+  nonce: string
+  to: string
+  transactionIndex: string
+  value: string
+  contractAddress: string
+  data: string
+  transactionHash: string
+  gasUsed: string
 }
+

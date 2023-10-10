@@ -69,6 +69,11 @@ type Config = {
   }
   isRemoteLocalNetwork: boolean // To indicate that the RPC server is running for a remote local network
   nodeExternalIpForRemoteLocalNetwork: string // The external IP of the node for the remote local network
+  /**
+   * If this is enabled rpc will try to use local db from collector microservice
+   * fallback will be using remote db from archiver/validator/explorer
+   **/
+  useLocalData: boolean
 }
 
 export const CONFIG: Config = {
@@ -131,10 +136,11 @@ export const CONFIG: Config = {
   filterDeadNodesFromArchiver: false,
   verbose: false,
   dashboard: {
-    enabled: true,
+    enabled: false,
     // relative path will work but absolute path is recommended
     dist_path: '../rpc-gateway-frontend/build/',
   },
   isRemoteLocalNetwork: false,
   nodeExternalIpForRemoteLocalNetwork: '127.0.0.1',
+  useLocalData: true,
 }

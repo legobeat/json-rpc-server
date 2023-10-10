@@ -33,6 +33,7 @@ import { subscriptionEventEmitter } from './websocket'
 import { evmLogProvider_ConnectionStream } from './websocket/distributor'
 import * as Types from './types'
 import { addEntry, checkEntry, getGasEstimate, removeEntry } from './service/gasEstimate'
+import { collectorDatabase } from './collector/storage'
 
 export const verbose = config.verbose
 const MAX_ESTIMATE_GAS = new BN(30_000_000)
@@ -1147,6 +1148,8 @@ export const methods = {
     )
   },
   eth_getTransactionByHash: async function (args: any, callback: any) {
+
+
     const api_name = 'eth_getTransactionByHash'
     const ticket = crypto
       .createHash('sha1')
@@ -1159,7 +1162,11 @@ export const methods = {
     const txHash = args[0]
     let retry = 0
     let success = false
-    let result
+    let result 
+    const local_receipt = config.useLocalData ?
+      await collectorDatabase.getReadableReceiptByHash(txHash) : null
+    // why v, r, s values are hardecoded?
+    // [TODO] fix it
     const defaultResult: any = {
       blockHash: '0x1d59ff54b1eb26b013ce3cb5fc9dab3705b415a67127a003c3e61eb445bb8df2',
       blockNumber: '0x5daf3b', // 6139707
@@ -1172,11 +1179,16 @@ export const methods = {
       to: '0xf02c1c8e6114b1dbe8937a39260b5b0a374432bb',
       transactionIndex: '0x1', // 1
       value: '0xf3dbb76162000', // 4290000000000000
-      v: '0x25', // 37
+      v: '0x25', // 37 
       r: '0x1b5e176d927f8e9ab405058b2d2457392da3e20f328b16ddabcebc33eaac5fea',
       s: '0x4ba69724e8f69de52f0125ad8b3c5c2cef33019bac3249e2c0a2192766d1721c',
     }
     let nodeUrl
+
+    // will skip quering remote sources if local data usage is enable and successfully sourced
+    if(config.useLocalData && local_receipt){
+      success = true;
+    }
     while (retry < 10 && !success) {
       try {
         let res
@@ -1237,6 +1249,7 @@ export const methods = {
         await sleep(2000)
       }
     }
+    result = local_receipt
     if (!result) {
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
       callback(errorBusy)
@@ -1258,90 +1271,6 @@ export const methods = {
     defaultResult.blockNumber = result.blockNumber
     defaultResult.value = result.value.indexOf('0x') === -1 ? '0x' + result.value : result.value
     defaultResult.gas = result.gasUsed
-    if (verbose) console.log('Final Tx:', txHash, defaultResult)
-    logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
-    callback(null, defaultResult)
-  },
-  eth_getTransactionByHash_fromCollector: async function (args: any, callback: any) {
-    const api_name = 'eth_getTransactionByHash'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running getTransactionByHash', args)
-    }
-    const txHash = args[0]
-    let retry = 0
-    let success = false
-    let result_transactions, result_logs
-    const defaultResult: any = {
-      blockHash: '0x1d59ff54b1eb26b013ce3cb5fc9dab3705b415a67127a003c3e61eb445bb8df2',
-      blockNumber: '0x5daf3b', // 6139707
-      from: '0xa7d9ddbe1f17865597fbd27ec712455208b6b76d',
-      gas: '0xc350', // 50000
-      gasPrice: '0x4a817c800', // 20000000000
-      hash: '0x88df016429689c079f3b2f6ad39fa052532c56795b733da78a91ebe6a713944b',
-      input: '0x68656c6c6f21',
-      nonce: '0x15', // 21
-      to: '0xf02c1c8e6114b1dbe8937a39260b5b0a374432bb',
-      transactionIndex: '0x1', // 1
-      value: '0xf3dbb76162000', // 4290000000000000
-      v: '0x25', // 37
-      r: '0x1b5e176d927f8e9ab405058b2d2457392da3e20f328b16ddabcebc33eaac5fea',
-      s: '0x4ba69724e8f69de52f0125ad8b3c5c2cef33019bac3249e2c0a2192766d1721c',
-    }
-    let nodeUrl = 'collector_url'
-    while (retry < 10 && !success) {
-      try {
-        let sqlQuery = `SELECT * FROM accounts WHERE txHash = '${txHash}'`
-        let response_transactions
-        response_transactions = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
-        // need to replace with
-        // result_transactions = await dB.get(sqlQuery);
-        result_transactions = response_transactions.data
-
-        sqlQuery = `SELECT contractAddress FROM logs WHERE txHash = '${txHash}'`
-        let response_logs
-        response_logs = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
-        // need to replace with
-        // res = await dB.get(sqlQuery);
-        result_logs = response_logs.data
-        success = true
-      } catch (e) {
-        if (verbose) console.log('Error: eth_getTransactionByHash', e)
-        retry += 1
-        await sleep(2000)
-      }
-    }
-    if (!result_transactions && !result_logs) {
-      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
-      callback(errorBusy)
-      return
-    }
-    if (result_transactions.value === '0') {
-      result_transactions.value = '0x0'
-    } // idk what to do here, missing from tables
-
-    if (verbose) console.log('result.from', result_transactions.txFrom)
-
-    defaultResult.hash = result_transactions.txHash
-    defaultResult.from = result_transactions.txFrom
-    defaultResult.to = result_transactions.txTo
-    defaultResult.nonce =
-      result_transactions.nonce.indexOf('0x') === -1
-        ? '0x' + result_transactions.nonce
-        : result_transactions.nonce // idk what to do here, missing from tables
-    defaultResult.contractAddress = result_logs.contractAddress
-    defaultResult.data = result_transactions.originalTxData // this could be transactions.result but not sure
-    defaultResult.blockHash = result_transactions.blockHash
-    defaultResult.blockNumber = result_transactions.blockNumber
-    defaultResult.value =
-      result_transactions.value.indexOf('0x') === -1
-        ? '0x' + result_transactions.value
-        : result_transactions.value // this could be transactions.result but not sure
-    defaultResult.gas = result_transactions.gasUsed // what do we do here?
     if (verbose) console.log('Final Tx:', txHash, defaultResult)
     logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
     callback(null, defaultResult)
