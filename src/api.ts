@@ -1,7 +1,7 @@
 import axios from 'axios'
 import WebSocket from 'ws'
 import { serializeError } from 'eth-rpc-errors'
-import { BN, bufferToHex, isHexPrefixed, keccak256 } from 'ethereumjs-util'
+import { BN, bufferToHex, intToHex, isHexPrefixed, keccak256 } from 'ethereumjs-util'
 import {
   calculateInternalTxHash,
   getAccount,
@@ -544,6 +544,14 @@ export const methods = {
     }
     let balance = '0x0'
     let nodeUrl
+
+    const local_balance = await collectorDatabase.getBalanceByAddress(args[0])
+    if(CONFIG.useLocalData && local_balance){
+      balance = intStringToHex(local_balance)
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl: undefined, success: true }, performance.now())
+      callback(null, balance)
+    }
+
     try {
       const address = args[0]
       if (verbose) console.log('address', address)
@@ -589,6 +597,17 @@ export const methods = {
     if (verbose) {
       console.log('Running getTransactionCount', args)
     }
+
+
+    if(CONFIG.useLocalData){
+      const nonce = await collectorDatabase.getTransactionCountByAddress(args[0])
+      if(nonce){
+        logEventEmitter.emit('fn_end', ticket, { nodeUrl: undefined, success: true }, performance.now())
+        const result = '0x' + nonce; 
+        callback(null, result)
+      }
+    }
+
     let nodeUrl
     try {
       const address = args[0]
@@ -597,7 +616,7 @@ export const methods = {
       nodeUrl = res.nodeUrl
       if (account) {
         const nonce = parseInt(account.nonce)
-        let result = '0x' + nonce.toString(16)
+        let result = intToHex(nonce)
         if (result === '0x') result = '0x0'
         if (verbose) {
           console.log('account.nonce', account.nonce)

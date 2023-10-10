@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3'
+import { CONFIG as rpcConfig } from '../config'
 import IDX_COLLECTOR_CONFIG from './config'
 import { verbose } from './index'
 
@@ -15,7 +16,7 @@ class Sqlite3Adapter{
     this.db.exec(sql)
   }
 
-  async getReadableReceiptByHash(hash: string): Promise<readableReceipt | null> {
+  async getReadableReceiptByHash(hash: hexString): Promise<readableReceipt | null> {
     try{
       const txHash = hash;
       const { txId } = await this.db.prepare('SELECT txId FROM originalTxsData2 WHERE txHash = ?').get(txHash)
@@ -24,6 +25,34 @@ class Sqlite3Adapter{
       verbose(4, `local_receipt sourced: ${JSON.stringify(receipt.data.readableReceipt)}`)
       return receipt.data.readableReceipt
     }catch(e){
+      verbose(1, `Error: ${e}`)
+      return null
+    }
+  }
+
+  async getBalanceByAddress(address: hexString): Promise<hexString | null> {
+    try{
+      const { account } = await this.db.prepare('SELECT account FROM accounts WHERE ethAddress = ?').get(address.toLowerCase())
+      const { balance } = JSON.parse(account)
+      return balance
+    }catch(e){
+      verbose(1, `Error: ${e}`)
+      return null
+    }
+  }
+
+  async getTransactionCountByAddress(address: string): Promise<hexString | null> {
+    try{
+      const  { account } = await this.db.prepare('SELECT account FROM accounts WHERE ethAddress = ?')
+      .get(address.toLowerCase());
+
+      const { nonce } = JSON.parse(account).account
+
+      verbose(4, `local_nonce sourced: ${nonce}`)
+
+      return nonce; // as hexadecimal string
+    }catch(e){
+
       verbose(1, `Error: ${e}`)
       return null
     }
@@ -55,3 +84,4 @@ type readableReceipt = {
   gasUsed: string
 }
 
+type hexString = string
