@@ -546,7 +546,7 @@ export const methods = {
     let nodeUrl
 
     const local_balance = await collectorDatabase.getBalanceByAddress(args[0])
-    if(CONFIG.useLocalData && local_balance){
+    if (CONFIG.useLocalData && local_balance) {
       balance = intStringToHex(local_balance)
       logEventEmitter.emit('fn_end', ticket, { nodeUrl: undefined, success: true }, performance.now())
       callback(null, balance)
@@ -598,12 +598,11 @@ export const methods = {
       console.log('Running getTransactionCount', args)
     }
 
-
-    if(CONFIG.useLocalData){
+    if (CONFIG.useLocalData) {
       const nonce = await collectorDatabase.getTransactionCountByAddress(args[0])
-      if(nonce){
+      if (nonce) {
         logEventEmitter.emit('fn_end', ticket, { nodeUrl: undefined, success: true }, performance.now())
-        const result = '0x' + nonce; 
+        const result = '0x' + nonce
         callback(null, result)
       }
     }
@@ -1167,8 +1166,6 @@ export const methods = {
     )
   },
   eth_getTransactionByHash: async function (args: any, callback: any) {
-
-
     const api_name = 'eth_getTransactionByHash'
     const ticket = crypto
       .createHash('sha1')
@@ -1181,9 +1178,10 @@ export const methods = {
     const txHash = args[0]
     let retry = 0
     let success = false
-    let result 
-    const local_receipt = config.useLocalData ?
-      await collectorDatabase.getReadableReceiptByHash(txHash) : null
+    let result
+    const local_receipt = config.useLocalData
+      ? await collectorDatabase.getReadableReceiptByHash(txHash)
+      : null
     // why v, r, s values are hardecoded?
     // [TODO] fix it
     const defaultResult: any = {
@@ -1198,15 +1196,15 @@ export const methods = {
       to: '0xf02c1c8e6114b1dbe8937a39260b5b0a374432bb',
       transactionIndex: '0x1', // 1
       value: '0xf3dbb76162000', // 4290000000000000
-      v: '0x25', // 37 
+      v: '0x25', // 37
       r: '0x1b5e176d927f8e9ab405058b2d2457392da3e20f328b16ddabcebc33eaac5fea',
       s: '0x4ba69724e8f69de52f0125ad8b3c5c2cef33019bac3249e2c0a2192766d1721c',
     }
     let nodeUrl
 
     // will skip quering remote sources if local data usage is enable and successfully sourced
-    if(config.useLocalData && local_receipt){
-      success = true;
+    if (config.useLocalData && local_receipt) {
+      success = true
     }
     while (retry < 10 && !success) {
       try {
@@ -1339,6 +1337,9 @@ export const methods = {
       let res
       let result
       const txHash = args[0]
+      const local_receipt = config.useLocalData
+        ? await collectorDatabase.getReadableReceiptByHash(txHash)
+        : null
       if (config.queryFromValidator) {
         res = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
         nodeUrl = res.data.nodeUrl

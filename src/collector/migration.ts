@@ -1,8 +1,6 @@
 import { db } from './storage'
 
-
 async function createLocalDataTables(): Promise<void> {
-
   await db.exec(
     'CREATE TABLE if not exists `cycles` (`cycleMarker` TEXT NOT NULL UNIQUE PRIMARY KEY, `counter` NUMBER NOT NULL, `cycleRecord` JSON NOT NULL)'
   )
@@ -15,7 +13,7 @@ async function createLocalDataTables(): Promise<void> {
       'PRIMARY KEY (`contract_address`, `function_signature`))'
   )
   await db.exec(
-    "CREATE TABLE if not exists `transactions` (`txId` TEXT NOT NULL, `result` JSON NOT NULL, `cycle` NUMBER NOT NULL, `partition` NUMBER, `timestamp` BIGINT NOT NULL, `blockNumber` NUMBER NOT NULL, `blockHash` TEXT NOT NULL, `wrappedEVMAccount` JSON NOT NULL, `accountId` TEXT NOT NULL,  `txFrom` TEXT NOT NULL, `txTo` TEXT NOT NULL, `nominee` TEXT, `txHash` TEXT NOT NULL, `transactionType` INTEGER NOT NULL, `originalTxData` JSON, PRIMARY KEY (`txId`, `txHash`))"
+    'CREATE TABLE if not exists `transactions` (`txId` TEXT NOT NULL, `result` JSON NOT NULL, `cycle` NUMBER NOT NULL, `partition` NUMBER, `timestamp` BIGINT NOT NULL, `blockNumber` NUMBER NOT NULL, `blockHash` TEXT NOT NULL, `wrappedEVMAccount` JSON NOT NULL, `accountId` TEXT NOT NULL,  `txFrom` TEXT NOT NULL, `txTo` TEXT NOT NULL, `nominee` TEXT, `txHash` TEXT NOT NULL, `transactionType` INTEGER NOT NULL, `originalTxData` JSON, PRIMARY KEY (`txId`, `txHash`))'
   )
 
   await db.exec(
@@ -37,4 +35,4 @@ function main(): void {
   createLocalDataTables()
 }
 
-main();
+main()
