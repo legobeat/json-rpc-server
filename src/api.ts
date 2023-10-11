@@ -1338,48 +1338,54 @@ export const methods = {
       let result
       const txHash = args[0]
       const local_receipt = config.useLocalData
-        ? await collectorDatabase.getReadableReceiptByHash(txHash)
+        ? await collectorDatabase.getCompleteReadableReceiptByHash(txHash)
         : null
-      if (config.queryFromValidator) {
-        res = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
-        nodeUrl = res.data.nodeUrl
-        result = res.data.account ? res.data.account.readableReceipt : null
-        if (result && result.readableReceipt) {
-          result = result.readableReceipt
-        } else if (result && result.appData && result.appData.data) {
-          result = result.appData.data.readableReceipt
-        }
-        if (!result && res.data && res.data.error) {
-          if (verbose) console.log(`eth_getTransactionReceipt from valdator error: ${res.data.error} `)
-        }
-      }
-      if (!result && config.queryFromArchiver) {
-        if (verbose) console.log('querying eth_getTransactionReceipt from archiver')
 
-        res = await axios.get(`${getArchiverUrl().url}/transaction?accountId=${txHash.substring(2)}`)
-        if (verbose) {
-          console.log('url', `${getArchiverUrl().url}/transaction?accountId=${txHash.substring(2)}`)
-          console.log('res', JSON.stringify(res.data))
+      if (config.useLocalData && local_receipt) {
+        result = local_receipt
+        // will skip quering remote sources if local data usage is enable and successfully sourced
+      } else {
+        if (!config.useLocalData && !local_receipt && config.queryFromValidator) {
+          res = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
+          nodeUrl = res.data.nodeUrl
+          result = res.data.account ? res.data.account.readableReceipt : null
+          if (result && result.readableReceipt) {
+            result = result.readableReceipt
+          } else if (result && result.appData && result.appData.data) {
+            result = result.appData.data.readableReceipt
+          }
+          if (!result && res.data && res.data.error) {
+            if (verbose) console.log(`eth_getTransactionReceipt from valdator error: ${res.data.error} `)
+          }
         }
+        if (!result && config.queryFromArchiver) {
+          if (verbose) console.log('querying eth_getTransactionReceipt from archiver')
 
-        result = res.data.transactions ? res.data.transactions.data.readableReceipt : null
-      } else if (!result && config.queryFromExplorer) {
-        console.log('querying eth_getTransactionReceipt from explorer', txHash)
-        // const explorerUrl = `http://${config.explorerInfo.ip}:${config.explorerInfo.port}`
-        const explorerUrl = config.explorerUrl
+          res = await axios.get(`${getArchiverUrl().url}/transaction?accountId=${txHash.substring(2)}`)
+          if (verbose) {
+            console.log('url', `${getArchiverUrl().url}/transaction?accountId=${txHash.substring(2)}`)
+            console.log('res', JSON.stringify(res.data))
+          }
 
-        res = await axios.get(`${explorerUrl}/api/transaction?txHash=${txHash}`)
-        if (verbose) {
-          console.log('url', `${explorerUrl}/api/transaction?txHash=${txHash}`)
-          console.log('res', JSON.stringify(res.data))
-        }
-        result = res.data.transactions
-          ? res.data.transactions[0]
-            ? res.data.transactions[0].wrappedEVMAccount.readableReceipt
+          result = res.data.transactions ? res.data.transactions.data.readableReceipt : null
+        } else if (!result && config.queryFromExplorer) {
+          console.log('querying eth_getTransactionReceipt from explorer', txHash)
+          // const explorerUrl = `http://${config.explorerInfo.ip}:${config.explorerInfo.port}`
+          const explorerUrl = config.explorerUrl
+
+          res = await axios.get(`${explorerUrl}/api/transaction?txHash=${txHash}`)
+          if (verbose) {
+            console.log('url', `${explorerUrl}/api/transaction?txHash=${txHash}`)
+            console.log('res', JSON.stringify(res.data))
+          }
+          result = res.data.transactions
+            ? res.data.transactions[0]
+              ? res.data.transactions[0].wrappedEVMAccount.readableReceipt
+              : null
             : null
-          : null
+        }
+        // console.log('url', `${config.explorerInfo.ip}:${config.explorerInfo.port}/api/transaction?txHash=${txHash}`)
       }
-      // console.log('url', `${config.explorerInfo.ip}:${config.explorerInfo.port}/api/transaction?txHash=${txHash}`)
       if (result) {
         if (!result.to || result.to == '') result.to = null
         if (result.logs == null) result.logs = []
