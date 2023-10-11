@@ -1179,9 +1179,6 @@ export const methods = {
     let retry = 0
     let success = false
     let result
-    const local_receipt = config.useLocalData
-      ? await collectorDatabase.getReadableReceiptByHash(txHash)
-      : null
     // why v, r, s values are hardecoded?
     // [TODO] fix it
     const defaultResult: any = {
@@ -1203,9 +1200,27 @@ export const methods = {
     let nodeUrl
 
     // will skip quering remote sources if local data usage is enable and successfully sourced
+    const local_receipt = config.useLocalData
+      ? await collectorDatabase.getReadableReceiptByHash(txHash)
+      : null
     if (config.useLocalData && local_receipt) {
       success = true
+
+      defaultResult.hash = local_receipt.transactionHash
+      defaultResult.from = local_receipt.from
+      defaultResult.to = local_receipt.to
+      defaultResult.nonce = local_receipt.nonce.indexOf('0x') === -1 ? '0x' + local_receipt.nonce : local_receipt.nonce
+      defaultResult.contractAddress = local_receipt.contractAddress
+      defaultResult.data = local_receipt.data
+      defaultResult.blockHash = local_receipt.blockHash
+      defaultResult.blockNumber = local_receipt.blockNumber
+      defaultResult.value = local_receipt.value.indexOf('0x') === -1 ? '0x' + local_receipt.value : local_receipt.value
+      defaultResult.gas = local_receipt.gasUsed
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, defaultResult)
     }
+
+    // ok query local source faild try validator or explorer
     while (retry < 10 && !success) {
       try {
         let res
@@ -1266,7 +1281,6 @@ export const methods = {
         await sleep(2000)
       }
     }
-    result = local_receipt
     if (!result) {
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
       callback(errorBusy)
