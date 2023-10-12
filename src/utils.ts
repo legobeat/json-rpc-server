@@ -1464,3 +1464,11 @@ export function hexToBN(hexString: string): BN {
   }
   return new BN(hexString, 16)
 }
+
+export function isValidHexString(str: string) {
+  // Define a regular expression pattern to match a valid hex string
+  const hexPattern = /^0x[0-9A-Fa-f]*$/;
+
+  // Use the test method to check if the string matches the pattern
+  return hexPattern.test(str);
+}

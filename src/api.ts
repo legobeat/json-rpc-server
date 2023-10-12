@@ -23,6 +23,7 @@ import {
   replayGas,
   hexToBN,
   fetchTxReceiptFromArchiver,
+  isValidHexString,
 } from './utils'
 import crypto from 'crypto'
 import { logEventEmitter } from './logger'
@@ -147,28 +148,6 @@ async function getLogsFromExplorer(request: Types.LogQueryRequest): Promise<any[
     console.error(`Error getting filter updates`, e)
   }
   return updates
-}
-
-async function getBlockByHashFromNode(blockHash: string) {
-  const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${blockHash}`)
-  if (res.data && res.data.block) {
-    return res.data.block.number
-  }
-}
-
-async function decideBlockNumberByHash(blockHash: string) {
-  const result = config.useLocalData
-    ? await collectorDatabase.getBlockNumberByBlockHash(blockHash)
-    : await getBlockByHashFromNode(blockHash)
-
-  return result
-}
-
-async function decideLatestBlockNumberSource() {
-  const result = config.useLocalData
-    ? await collectorDatabase.getLatestBlockNumber()
-    : await getCurrentBlockInfo()
-  return result
 }
 
 async function getCurrentBlockInfo() {
@@ -1757,10 +1736,8 @@ export const methods = {
         request.fromBlock = lastBlockInfo.blockNumber
       } else {
         try {
-          let response = await decideLatestBlockNumberSource()
-          if (response) {
-            request.fromBlock = response.blockNumber
-          }
+          let { blockNumber } = await getCurrentBlockInfo()
+          request.fromBlock = blockNumber
         } catch (e) {
           console.error(`eth_getLogs: failed to get current block`, e)
           callback(null, new Error(`eth_getLogs: failed to get current block`))
@@ -1774,10 +1751,8 @@ export const methods = {
         request.toBlock = lastBlockInfo.blockNumber
       } else {
         try {
-          let response = await decideLatestBlockNumberSource()
-          if (response) {
-            request.fromBlock = response.blockNumber
-          }
+          let { blockNumber } = await getCurrentBlockInfo()
+          request.toBlock = blockNumber
         } catch (e) {
           console.error(`eth_getLogs: failed to get current block`, e)
           callback(null, new Error(`eth_getLogs: failed to get current block`))
@@ -1787,9 +1762,14 @@ export const methods = {
       }
     }
     if (request.blockHash) {
-      let blockNumber = decideBlockNumberByHash(request.blockHash)
-      request.fromBlock = blockNumber
-      request.toBlock = blockNumber
+      const res = await requestWithRetry(
+        RequestMethod.Get,
+        `/eth_getBlockByHash?blockHash=${request.blockHash}`
+      )
+      if (res.data && res.data.block) {
+        request.fromBlock = res.data.block.number
+        request.toBlock = res.data.block.number
+      }
     }
     logs =  await getLogsFromExplorer(request)
     callback(null, logs)
