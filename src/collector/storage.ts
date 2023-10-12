@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { CONFIG as rpcConfig } from '../config'
 import IDX_COLLECTOR_CONFIG from './config'
 import { verbose } from './index'
+import * as Types from '../types'
 
 class Sqlite3Adapter {
   db: any
@@ -74,6 +75,59 @@ class Sqlite3Adapter {
     }
   }
 
+  async getLogs(request: Types.LogQueryRequest): Promise<any[]> {
+    try {
+      const from = Number(request.fromBlock)
+      const to = Number(request.toBlock)
+      let { log } = await this.db
+        .prepare('SELECT log FROM logs WHERE blockNumber BETWEEN ? AND ?')
+        .get(from, to)
+
+      log = JSON.parse(log)
+
+      verbose(4, `logs secured via getLogs : ${log}`)
+
+      return log
+    } catch (e) {
+      verbose(1, `Error: ${e}`)
+      return []
+    }
+  }
+
+  async getLatestBlockNumber(): Promise<BlockNumberResult | null> {
+    try {
+      const { blockNumber } = await this.db
+        .prepare('SELECT blockNumber FROM transactions ORDER BY timestamp DESC LIMIT 1')
+        .get()
+
+      verbose(4, `Extracting blockNumber from latest transaction: ${blockNumber}`)
+
+      const result: BlockNumberResult = {
+        blockNumber: blockNumber,
+      }
+
+      return result
+    } catch (e) {
+      verbose(1, `Error in extracting blockNumber from latest transaction: ${e}`)
+      return null
+    }
+  }
+
+  async getBlockNumberByBlockHash(blockHash: string): Promise<number | null> {
+    try {
+      const { blockNumber } = await this.db
+        .prepare('SELECT blockNumber FROM transactions WHERE blockHash = ?')
+        .get(blockHash)
+
+      verbose(4, `Extracting blockNumber by BlockHash: ${blockNumber}`)
+
+      return blockNumber
+    } catch (e) {
+      verbose(1, `Error in extracting  blockNumber by BlockHash: ${e}`)
+      return null
+    }
+  }
+
   prepare(sql: string): any {
     return this.db.prepare(sql)
   }
@@ -119,3 +173,7 @@ type completeReadableReciept = {
 }
 
 type hexString = string
+
+type BlockNumberResult = {
+  blockNumber: number
+}

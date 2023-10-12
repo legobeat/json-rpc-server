@@ -149,6 +149,28 @@ async function getLogsFromExplorer(request: Types.LogQueryRequest): Promise<any[
   return updates
 }
 
+async function getBlockByHashFromNode(blockHash: string) {
+  const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${blockHash}`)
+  if (res.data && res.data.block) {
+    return res.data.block.number
+  }
+}
+
+async function decideBlockNumberByHash(blockHash: string) {
+  const result = config.useLocalData
+    ? await collectorDatabase.getBlockNumberByBlockHash(blockHash)
+    : await getBlockByHashFromNode(blockHash)
+
+  return result
+}
+
+async function decideLatestBlockNumberSource() {
+  const result = config.useLocalData
+    ? await collectorDatabase.getLatestBlockNumber()
+    : await getCurrentBlockInfo()
+  return result
+}
+
 async function getCurrentBlockInfo() {
   if (verbose) console.log('Running getCurrentBlockInfo')
   let result = { ...lastBlockInfo, nodeUrl: undefined }
@@ -1209,12 +1231,14 @@ export const methods = {
       defaultResult.hash = local_receipt.transactionHash
       defaultResult.from = local_receipt.from
       defaultResult.to = local_receipt.to
-      defaultResult.nonce = local_receipt.nonce.indexOf('0x') === -1 ? '0x' + local_receipt.nonce : local_receipt.nonce
+      defaultResult.nonce =
+        local_receipt.nonce.indexOf('0x') === -1 ? '0x' + local_receipt.nonce : local_receipt.nonce
       defaultResult.contractAddress = local_receipt.contractAddress
       defaultResult.data = local_receipt.data
       defaultResult.blockHash = local_receipt.blockHash
       defaultResult.blockNumber = local_receipt.blockNumber
-      defaultResult.value = local_receipt.value.indexOf('0x') === -1 ? '0x' + local_receipt.value : local_receipt.value
+      defaultResult.value =
+        local_receipt.value.indexOf('0x') === -1 ? '0x' + local_receipt.value : local_receipt.value
       defaultResult.gas = local_receipt.gasUsed
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
       callback(null, defaultResult)
@@ -1702,8 +1726,10 @@ export const methods = {
         request.fromBlock = lastBlockInfo.blockNumber
       } else {
         try {
-          let { blockNumber } = await getCurrentBlockInfo()
-          request.fromBlock = blockNumber
+          let response = await decideLatestBlockNumberSource()
+          if (response) {
+            request.fromBlock = response.blockNumber
+          }
         } catch (e) {
           console.error(`eth_getLogs: failed to get current block`, e)
           callback(null, new Error(`eth_getLogs: failed to get current block`))
@@ -1717,8 +1743,10 @@ export const methods = {
         request.toBlock = lastBlockInfo.blockNumber
       } else {
         try {
-          let { blockNumber } = await getCurrentBlockInfo()
-          request.toBlock = blockNumber
+          let response = await decideLatestBlockNumberSource()
+          if (response) {
+            request.fromBlock = response.blockNumber
+          }
         } catch (e) {
           console.error(`eth_getLogs: failed to get current block`, e)
           callback(null, new Error(`eth_getLogs: failed to get current block`))
@@ -1728,16 +1756,11 @@ export const methods = {
       }
     }
     if (request.blockHash) {
-      const res = await requestWithRetry(
-        RequestMethod.Get,
-        `/eth_getBlockByHash?blockHash=${request.blockHash}`
-      )
-      if (res.data && res.data.block) {
-        request.fromBlock = res.data.block.number
-        request.toBlock = res.data.block.number
-      }
+      let blockNumber = decideBlockNumberByHash(request.blockHash)
+      request.fromBlock = blockNumber
+      request.toBlock = blockNumber
     }
-    logs = await getLogsFromExplorer(request)
+    logs = config.useLocalData ? await collectorDatabase.getLogs(request) : await getLogsFromExplorer(request)
     callback(null, logs)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
