@@ -1083,6 +1083,7 @@ export const methods = {
 
       let useCache
       if (!config.gasEstimateUseCache) useCache = false
+      else if (!args['gasPrice']) useCache = true
       else {
         const gasPrice = await getGasPrice()
         const gasPriceBN = hexToBN(gasPrice.result ?? '0x0')
