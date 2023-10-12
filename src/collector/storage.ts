@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import { CONFIG as rpcConfig } from '../config'
+import { LogFilter } from '../types'
 import IDX_COLLECTOR_CONFIG from './config'
 import { verbose } from './index'
 import * as Types from '../types'
@@ -75,23 +76,74 @@ class Sqlite3Adapter {
     }
   }
 
-  async getLogs(request: Types.LogQueryRequest): Promise<any[]> {
+  async getLogsByFilter(filter: LogFilter): Promise<any[]> {
     try {
-      const from = Number(request.fromBlock)
-      const to = Number(request.toBlock)
-      let { log } = await this.db
-        .prepare('SELECT log FROM logs WHERE blockNumber BETWEEN ? AND ?')
-        .get(from, to)
 
-      log = JSON.parse(log)
-
-      verbose(4, `logs secured via getLogs : ${log}`)
-
-      return log
+      const sql = this.createSqlFromEvmLogFilter(filter)
+      console.log(sql);
+      let logs = await this.db.prepare(sql).all();
+      logs = logs.map((log: any) => JSON.parse(log.log))
+      return logs
     } catch (e) {
       verbose(1, `Error: ${e}`)
       return []
     }
+  }
+
+  createSqlFromEvmLogFilter(filter: LogFilter): string{
+      const { fromBlock, toBlock, address, topics, blockHash } = filter
+      let sql = `SELECT log FROM logs WHERE contractAddress LIKE '%${address.toLowerCase()}%'`
+
+      if(blockHash){
+        sql += ` AND blockHash = '${blockHash}'`
+      }
+      else{
+        if(fromBlock == 'latest'){
+          sql += ` AND blockNumber >= (
+                        SELECT MAX(blockNumber)
+                        FROM logs
+                  )`
+        }
+        if(fromBlock == 'earliest'){
+          // genesis block
+          sql += ` AND blockNumber >= 0`
+        }
+        if(fromBlock && fromBlock !== 'latest' && fromBlock !== 'earliest') {
+          sql += ` AND blockNumber >= ${Number(fromBlock)}`;
+        }
+
+        if(toBlock == 'latest'){
+          sql += ` AND blockNumber <= (
+                        SELECT MAX(blockNumber)
+                        FROM logs
+                  )`
+        }
+        if(toBlock == 'earliest'){
+          // genesis block
+          sql += ` AND blockNumber <= 0`
+        }
+        if(toBlock && toBlock !== 'latest' && toBlock !== 'earliest') {
+          sql += ` AND blockNumber <= ${Number(toBlock)}`;
+        }
+      }
+
+      if(topics[0]) {
+        sql += ` AND topic0 LIKE '%${topics[0]}%'`
+      }
+      if(topics[1]) {
+        sql += ` AND topic1 LIKE '%${topics[1]}%'`
+      }
+      if(topics[2]) {
+        sql += ` AND topic2 LIKE '%${topics[2]}%'`
+      }
+      if(topics[3]) {
+        sql += ` AND topic3 LIKE '%${topics[3]}%'`
+      }
+      if(topics[4]) {
+        sql += ` AND topic4 LIKE '%${topics[4]}%'`
+      }
+      sql += ` ORDER BY blockNumber ASC LIMIT 10000;`
+      return sql;
   }
 
   async getLatestBlockNumber(): Promise<BlockNumberResult | null> {
@@ -131,6 +183,7 @@ class Sqlite3Adapter {
   prepare(sql: string): any {
     return this.db.prepare(sql)
   }
+
 }
 
 export const collectorDatabase: Sqlite3Adapter = new Sqlite3Adapter(IDX_COLLECTOR_CONFIG.database.disk_path)

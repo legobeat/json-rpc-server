@@ -11,6 +11,7 @@ export type LogFilter = BaseFilterArgs & {
   topics: Topic[]
   fromBlock?: string
   toBlock?: string
+  blockHash?: string
   lastQueriedTimestamp: number
   lastQueriedBlock: number
   createdBlock: number

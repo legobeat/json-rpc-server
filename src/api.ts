@@ -1685,9 +1685,24 @@ export const methods = {
     let filterId = args[0]
     let logs = []
 
+
     const internalFilter: Types.InternalFilter | undefined = filtersMap.get(filterId.toString())
+
     if (internalFilter && internalFilter.type === Types.FilterTypes.log) {
       let logFilter = internalFilter.filter as Types.LogFilter
+
+      // try to query local data first from collector db
+      if(CONFIG.useLocalData) {
+        logs = await collectorDatabase.getLogsByFilter(logFilter)
+
+        if(logs.length > 0){
+          logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+          callback(null, logs)
+          return
+        }
+      }
+
+      // local try fail falling back to remote sources
       let request: Types.LogQueryRequest = {
         address: logFilter.address,
         topics: logFilter.topics,
@@ -1718,6 +1733,22 @@ export const methods = {
     }
     let request = args[0]
     let logs = []
+
+    // attempt to locally source
+    if(config.useLocalData){
+      logs = await collectorDatabase.getLogsByFilter(request as Types.LogFilter);
+
+      // we got it
+      if(logs.length > 0){
+        logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+        callback(null, logs)
+        return 
+      }
+
+      // don't get it
+      // clean the var for remote source falback later
+      logs = []
+    }
     if (request.fromBlock === 'earliest') {
       request.fromBlock = '0'
     }
@@ -1760,7 +1791,7 @@ export const methods = {
       request.fromBlock = blockNumber
       request.toBlock = blockNumber
     }
-    logs = config.useLocalData ? await collectorDatabase.getLogs(request) : await getLogsFromExplorer(request)
+    logs =  await getLogsFromExplorer(request)
     callback(null, logs)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
