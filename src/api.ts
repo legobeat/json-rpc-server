@@ -209,6 +209,36 @@ async function getCurrentBlock() {
   }
 }
 
+async function getExplorerPendingTransactions() {
+  const explorerURL = config.explorerUrl
+  let txHashes: string[] = []
+  let currentPage = 1
+  let hasMorePages = true
+
+  while (hasMorePages) {
+    try {
+      const response = await axios.get(
+        `${explorerURL}/api/originalTx?pending=true&decode=true&page=${currentPage}`
+      )
+      if (response.data.success) {
+        response.data.originalTxs.forEach((tx: { txHash: string }) => {
+          txHashes.push(tx.txHash)
+        })
+        // If the current page has less than 10 transactions, it means we've reached the last page
+        hasMorePages = response.data.originalTxs.length === 10
+        currentPage++
+      } else {
+        hasMorePages = false
+      }
+    } catch (error) {
+      console.log(error)
+      hasMorePages = false
+    }
+  }
+
+  return txHashes
+}
+
 export function createRejectTxStatus(txHash: string, reason: string, ip: string, nodeUrl?: string) {
   recordTxStatus({
     txHash: txHash,
@@ -1481,8 +1511,25 @@ export const methods = {
     if (verbose) {
       console.log('Running newPendingTransactionFilter', args)
     }
-    const result = '0x1'
-    callback(null, result)
+
+    const currentBlock = await getCurrentBlock()
+    const filterId = getFilterId()
+    const filterObj: Types.PendingTransactionFilter = {
+      id: filterId,
+      lastQueriedTimestamp: Date.now(),
+      lastQueriedBlock: parseInt(currentBlock.number.toString()),
+      createdBlock: parseInt(currentBlock.number.toString()),
+    }
+    const unsubscribe = () => {}
+    const internalFilter: Types.InternalFilter = {
+      updates: [],
+      filter: filterObj,
+      unsubscribe,
+      type: Types.FilterTypes.pendingTransaction,
+    }
+    filtersMap.set(filterId.toString(), internalFilter)
+
+    callback(null, filterId)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
   eth_uninstallFilter: async function (args: any, callback: any) {
@@ -1581,6 +1628,26 @@ export const methods = {
         updates = res.data.blockHashes
         blockFilter.lastQueriedBlock = res.data.toBlock
         blockFilter.lastQueriedTimestamp = Date.now()
+      }
+    } else if (internalFilter && internalFilter.type === Types.FilterTypes.pendingTransaction) {
+      try {
+        // fetch pending transaction hashes from explorer and return them
+        let pendingTransactionHashes = await getExplorerPendingTransactions()
+
+        internalFilter.updates = pendingTransactionHashes
+        // Fetch the current block info
+        const { blockNumber } = await getCurrentBlockInfo()
+        // Update the last queried block and timestamp of the filter
+        internalFilter.filter.lastQueriedBlock = parseInt(blockNumber)
+        internalFilter.filter.lastQueriedTimestamp = Date.now()
+        // Emit events for the new transactions and updated filter
+        logEventEmitter.emit(`pendingTransactions`, pendingTransactionHashes)
+        logEventEmitter.emit(`pendingTransactions_${filterId}`, internalFilter)
+        // Assign the updates to the updates variable and clear the updates in the filter
+        updates = internalFilter.updates
+        internalFilter.updates = [] // clear the updates after retrieving them
+      } catch (error) {
+        console.error(`eth_getFilterChanges: error fetching pending transactions from explorer: ${error}`)
       }
     } else {
       // throw new Error("filter not found");
