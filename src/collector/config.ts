@@ -24,7 +24,7 @@ export enum DB {
 
 const IDX_COLLECTOR_CONFIG: collector_config = {
   database: {
-    disk_path: path.resolve('./../../shardus/relayer/collector/db.sqlite3')
+    disk_path: path.resolve('../collector/db.sqlite3')
   },
   verbosity: 4,
 }

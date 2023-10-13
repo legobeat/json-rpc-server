@@ -705,10 +705,19 @@ export const methods = {
     }
     let nodeUrl
     try {
-      const res = await getCode(args[0])
-      const contractCode = res.contractCode
-      nodeUrl = res.nodeUrl ? res.nodeUrl : undefined
-
+      let contractCode
+      if(config.useLocalData){
+        contractCode = await collectorDatabase.getCode(args[0])
+        nodeUrl = "local collector dB"
+        if (verbose) console.log('eth_getCode result', contractCode)
+        logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+        callback(null, contractCode)
+        return
+      } else {
+        const res = await getCode(args[0])
+        contractCode = res.contractCode
+        nodeUrl = res.nodeUrl ? res.nodeUrl : undefined
+      }
       if (verbose) console.log('eth_getCode result', contractCode)
       logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
       callback(null, contractCode)

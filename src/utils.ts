@@ -1472,3 +1472,16 @@ export function isValidHexString(str: string) {
   // Use the test method to check if the string matches the pattern
   return hexPattern.test(str);
 }
+
+/****************  Borrowed from @chainsafe/ssz */
+// Caching this info costs about ~1000 bytes and speeds up toHexString() by x6
+const hexByByte = Array.from({ length: 256 }, (v, i) => i.toString(16).padStart(2, '0'))
+
+export const bytesToHex = (bytes: Uint8Array): string => {
+  let hex = '0x'
+  if (bytes === undefined || bytes.length === 0) return hex
+  for (const byte of bytes) {
+    hex += hexByByte[byte]
+  }
+  return hex
+}

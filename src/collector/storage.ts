@@ -4,6 +4,8 @@ import { LogFilter } from '../types'
 import IDX_COLLECTOR_CONFIG from './config'
 import { verbose } from './index'
 import * as Types from '../types'
+import { bytesToHex } from '../utils'
+
 
 class Sqlite3Adapter {
   db: any
@@ -179,6 +181,46 @@ class Sqlite3Adapter {
       return null
     }
   }
+
+  async getCode(ethAddress: string): Promise<string | null> {
+    try {
+        // Fetch account data from the database
+        const response = await this.db.prepare(
+            'SELECT account FROM accounts WHERE ethAddress = ? AND accountType = 2'
+        ).get(ethAddress);
+        
+        // Return null if data is undefined or doesn't have the account property
+        if (!response || !response.account) {
+            verbose(4, "No account found.");
+            return null;
+        }
+
+        // Safely parse account data
+        let account;
+        try {
+            account = JSON.parse(response.account);
+        } catch (parseError) {
+            verbose(1, `JSON parse error: ${parseError}`);
+            return null;
+        }
+
+        // Extract buffer from the account data and log its type
+        const buffer = account.codeByte;
+
+        // Convert the object values into a Uint8Array
+        const byteArray = Uint8Array.from(Object.values(buffer));
+
+        // Convert the Uint8Array into a hexadecimal string
+        const hexString = bytesToHex(byteArray);
+        verbose(4, `The result is ${hexString}`);
+
+        return hexString;
+        
+    } catch (e) {
+        verbose(1, `Error: ${e}`);
+        return null;
+    }
+}
 
   prepare(sql: string): any {
     return this.db.prepare(sql)
