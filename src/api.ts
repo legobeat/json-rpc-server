@@ -1631,6 +1631,23 @@ export const methods = {
         topics: logFilter.topics,
         fromBlock: String(logFilter.lastQueriedBlock + 1),
       }
+
+      // try pulling from collector db first
+      if(config.useLocalData){
+        updates = await collectorDatabase.getLogsByFilter(request as Types.LogFilter)
+        if(updates.length > 0){
+
+          const localCurrentBlockNum = await collectorDatabase.getLatestBlockNumber()
+          logFilter.lastQueriedBlock = localCurrentBlockNum ? 
+            localCurrentBlockNum : logFilter.lastQueriedBlock
+          logFilter.lastQueriedTimestamp = Date.now()
+          logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+          callback(null, updates)
+          return
+        }
+      }
+
+      // local try fail falling back to remote sources
       console.log('filter changes request', request)
       updates = await getLogsFromExplorer(request)
       internalFilter.updates = []
@@ -1650,6 +1667,8 @@ export const methods = {
     } else {
       // throw new Error("filter not found");
       console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
+      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+      callback({error: 'filter not found'})
     }
 
     if (config.verbose)
