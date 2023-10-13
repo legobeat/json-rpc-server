@@ -146,19 +146,15 @@ class Sqlite3Adapter {
       return sql;
   }
 
-  async getLatestBlockNumber(): Promise<BlockNumberResult | null> {
+  async getLatestBlockNumber(): Promise<number | null> {
     try {
       const { blockNumber } = await this.db
-        .prepare('SELECT blockNumber FROM transactions ORDER BY timestamp DESC LIMIT 1')
+        .prepare('SELECT MAX(blockNumber) AS blockNumber FROM logs')
         .get()
-
       verbose(4, `Extracting blockNumber from latest transaction: ${blockNumber}`)
 
-      const result: BlockNumberResult = {
-        blockNumber: blockNumber,
-      }
 
-      return result
+      return blockNumber
     } catch (e) {
       verbose(1, `Error in extracting blockNumber from latest transaction: ${e}`)
       return null
