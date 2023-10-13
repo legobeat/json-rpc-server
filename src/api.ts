@@ -954,7 +954,7 @@ export const methods = {
       if (verbose) console.log('contract call res.data.result', callObj, nodeUrl, res.data.result)
       if (res.data == null || res.data.result == null) {
         //callback(null, errorHexStatus)
-        callback(errorBusy)
+        callback({ code: errorCode, message: 'Busy or error 1' })
         logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: false }, performance.now())
         return
       }
@@ -966,7 +966,7 @@ export const methods = {
       console.log(`Error while making an eth call`, e)
       //callback(null, errorHexStatus)
       logEventEmitter.emit('fn_end', ticket, { nodeUrl: undefined, success: false }, performance.now())
-      callback(errorBusy)
+      callback({ code: errorCode, message: 'Busy or error 2' })
     }
   },
   eth_estimateGas: async function (args: any, callback: any) {
@@ -979,21 +979,25 @@ export const methods = {
     if (verbose) {
       console.log('Running estimateGas', args)
     }
-    // const result = '0x1C9C380' // 30 M gas
-    let result = '0x2DC6C0' // 3 M gas
-    try {
-      if (!args[0]['to']) {
-        callback(null, result)
-        return
-      }
-      result = await replayGas(args[0])
-      const originalEstimate = new BN(result)
-      // Add 5% buffer
-      originalEstimate.imuln(1.05)
-      result = '0x' + originalEstimate.toString(16)
-    } catch (e) {
-      console.log('Estimate gas error', e)
-    }
+    const result = '0x1C9C380' // 30 M gas
+    //let result = '0x2DC6C0' // 3 M gas
+
+    //let result = '0x5B8D80' // 6 M gas
+
+    //const result = '0x1C9C380' // 30 M gas
+    // try {
+    //   if (!args[0]['to']) {
+    //     callback(null, result)
+    //     return
+    //   }
+    //   result = await replayGas(args[0])
+    //   const originalEstimate = new BN(result)
+    //   // Add 5% buffer
+    //   originalEstimate.imuln(1.05)
+    //   result = '0x' + originalEstimate.toString(16)
+    // } catch (e) {
+    //   console.log('Estimate gas error', e)
+    // }
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
@@ -1068,7 +1072,7 @@ export const methods = {
       s: '0x4ba69724e8f69de52f0125ad8b3c5c2cef33019bac3249e2c0a2192766d1721c',
     }
     let nodeUrl
-    while (retry < 10 && !success) {
+    while (retry < 20 && !success) {
       try {
         let res
         if (config.queryFromValidator) {
@@ -1130,7 +1134,7 @@ export const methods = {
     }
     if (!result) {
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
-      callback(errorBusy)
+      callback({ code: errorCode, message: 'Busy or error 3' })
       return
     }
     if (result.value === '0') {
@@ -1250,7 +1254,7 @@ export const methods = {
     } catch (e) {
       console.log('Unable to eth_getTransactionReceipt', e)
       //callback(null, errorHexStatus)
-      callback(errorBusy)
+      callback({ code: errorCode, message: 'Busy or error 4' })
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     }
   },
@@ -1639,7 +1643,7 @@ export const methods = {
     } catch (e) {
       console.log(`Error while making an eth call`, e)
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
-      callback(errorBusy)
+      callback({ code: errorCode, message: 'Busy or error 5' })
     }
   },
   debug_storageRangeAt: async function (args: any, callback: any) {
@@ -1699,7 +1703,7 @@ export const methods = {
     } catch (e) {
       console.log(`Error while making an eth call`, e)
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
-      callback(errorBusy)
+      callback({ code: errorCode, message: 'Busy or error 6' })
     }
   },
   db_putString: async function (args: any, callback: any) {
@@ -1908,7 +1912,7 @@ export const methods = {
       if (verbose) console.log('contract eth_getAccessList res.data', callObj, res.data.nodeUrl, res.data)
       if (res.data == null || res.data.accessList == null) {
         logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
-        callback(errorBusy)
+        callback({ code: errorCode, message: 'Busy or error 7' })
         return
       }
       if (verbose)
@@ -1918,7 +1922,7 @@ export const methods = {
     } catch (e) {
       console.log(`Error while making an eth call`, e)
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
-      callback(errorBusy)
+      callback({ code: errorCode, message: 'Busy or error 8' })
     }
   },
   eth_subscribe: async function (args: any, callback: any) {
