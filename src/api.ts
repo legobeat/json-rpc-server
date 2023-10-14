@@ -33,6 +33,7 @@ import { subscriptionEventEmitter } from './websocket'
 import { evmLogProvider_ConnectionStream } from './websocket/distributor'
 import * as Types from './types'
 import { addEntry, checkEntry, getGasEstimate, removeEntry } from './service/gasEstimate'
+import { collectorAPI } from './collector'
 
 export const verbose = config.verbose
 const MAX_ESTIMATE_GAS = new BN(30_000_000)
@@ -84,8 +85,8 @@ export type DetailedTxStatus = {
 
 let filtersMap: Map<string, Types.InternalFilter> = new Map()
 
-function buildLogAPIUrl(request: Types.LogQueryRequest) {
-  const apiUrl = `${config.explorerUrl}/api/log`
+export function buildLogAPIUrl(request: Types.LogQueryRequest, baseDomain = config.explorerUrl) {
+  const apiUrl = `${baseDomain}/api/log`
   const queryParams = []
 
   // Check if each query parameter exists in the request object and add it to the queryParams array if it does
@@ -1682,6 +1683,14 @@ export const methods = {
       if (res.data && res.data.block) {
         request.fromBlock = res.data.block.number
         request.toBlock = res.data.block.number
+      }
+    }
+    if(CONFIG.collectorSourcing.enabled) {
+      logs = await collectorAPI.getLogsByFilter(request)
+      if(logs.length > 0) {
+        callback(null, logs)
+        logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+        return
       }
     }
     logs = await getLogsFromExplorer(request)

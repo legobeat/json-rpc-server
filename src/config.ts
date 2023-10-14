@@ -67,8 +67,18 @@ type Config = {
     enabled: boolean
     dist_path: string
   }
+
   isRemoteLocalNetwork: boolean // To indicate that the RPC server is running for a remote local network
   nodeExternalIpForRemoteLocalNetwork: string // The external IP of the node for the remote local network
+  /**
+   * This is to enable/disable the collector sourcing feature
+   * If enabled, the rpc server will try to get data from the local collector api server
+   * fallback is active network or explorer
+   * **/
+  collectorSourcing: {
+    enabled: boolean
+    collectorApiServerUrl: string
+  }
 }
 
 export const CONFIG: Config = {
@@ -137,4 +147,8 @@ export const CONFIG: Config = {
   },
   isRemoteLocalNetwork: false,
   nodeExternalIpForRemoteLocalNetwork: '127.0.0.1',
+  collectorSourcing: {
+    enabled: true,
+    collectorApiServerUrl: 'http://0.0.0.0:6001'
+  }
 }
