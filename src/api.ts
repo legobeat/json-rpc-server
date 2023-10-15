@@ -1568,7 +1568,12 @@ export const methods = {
         fromBlock: String(logFilter.lastQueriedBlock + 1),
       }
       console.log('filter changes request', request)
-      updates = await getLogsFromExplorer(request)
+      // try sourcing from collector api server
+      updates = await collectorAPI.getLogsByFilter(request)
+      if(updates.length === 0) {
+        // fallback to explorer
+        updates = await getLogsFromExplorer(request)
+      }
       internalFilter.updates = []
       let currentBlock = await getCurrentBlock()
       // this could potentially have issue because explorer server is a bit behind validator in terms of tx receipt or block number

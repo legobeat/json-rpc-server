@@ -139,7 +139,7 @@ export const CONFIG: Config = {
   nonceValidate: false,
   adaptiveRejection: true,
   filterDeadNodesFromArchiver: false,
-  verbose: false,
+  verbose: true,
   dashboard: {
     enabled: true,
     // relative path will work but absolute path is recommended

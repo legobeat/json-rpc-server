@@ -11,6 +11,7 @@ class Collector{
   }
 
  async getLogsByFilter(request: LogQueryRequest): Promise<any[]> {
+    if (!CONFIG.collectorSourcing.enabled) return []
     let updates: any[] = []
     let currentPage = 1
 
