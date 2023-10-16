@@ -1177,8 +1177,12 @@ export const methods = {
       r: '0x1b5e176d927f8e9ab405058b2d2457392da3e20f328b16ddabcebc33eaac5fea',
       s: '0x4ba69724e8f69de52f0125ad8b3c5c2cef33019bac3249e2c0a2192766d1721c',
     }
-    if(CONFIG.collectorSourcing.enabled) {
-      result = await collectorAPI.getTransactionByHash(txHash)
+    const local_receipt = CONFIG.collectorSourcing.enabled
+        ? await collectorAPI.getTransactionByHash(txHash)
+        : null
+
+    if(CONFIG.collectorSourcing.enabled && local_receipt) {
+      result = local_receipt
       success = true
     }
     let nodeUrl
@@ -1311,45 +1315,55 @@ export const methods = {
       let res
       let result
       const txHash = args[0]
-      if (config.queryFromValidator) {
-        res = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
-        nodeUrl = res.data.nodeUrl
-        result = res.data.account ? res.data.account.readableReceipt : null
-        if (result && result.readableReceipt) {
-          result = result.readableReceipt
-        } else if (result && result.appData && result.appData.data) {
-          result = result.appData.data.readableReceipt
-        }
-        if (!result && res.data && res.data.error) {
-          if (verbose) console.log(`eth_getTransactionReceipt from valdator error: ${res.data.error} `)
-        }
-      }
-      if (!result && config.queryFromArchiver) {
-        if (verbose) console.log('querying eth_getTransactionReceipt from archiver')
 
-        res = await axios.get(`${getArchiverUrl().url}/transaction?accountId=${txHash.substring(2)}`)
-        if (verbose) {
-          console.log('url', `${getArchiverUrl().url}/transaction?accountId=${txHash.substring(2)}`)
-          console.log('res', JSON.stringify(res.data))
-        }
+      const local_receipt = CONFIG.collectorSourcing.enabled
+        ? await collectorAPI.getTransactionByHash(txHash)
+        : null
 
-        result = res.data.transactions ? res.data.transactions.data.readableReceipt : null
-      } else if (!result && config.queryFromExplorer) {
-        console.log('querying eth_getTransactionReceipt from explorer', txHash)
-        // const explorerUrl = `http://${config.explorerInfo.ip}:${config.explorerInfo.port}`
-        const explorerUrl = config.explorerUrl
-
-        res = await axios.get(`${explorerUrl}/api/transaction?txHash=${txHash}`)
-        if (verbose) {
-          console.log('url', `${explorerUrl}/api/transaction?txHash=${txHash}`)
-          console.log('res', JSON.stringify(res.data))
+      if(CONFIG.collectorSourcing.enabled && local_receipt) {
+        result = local_receipt
+      } else {
+        if (config.queryFromValidator) {
+          res = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
+          nodeUrl = res.data.nodeUrl
+          result = res.data.account ? res.data.account.readableReceipt : null
+          if (result && result.readableReceipt) {
+            result = result.readableReceipt
+          } else if (result && result.appData && result.appData.data) {
+            result = result.appData.data.readableReceipt
+          }
+          if (!result && res.data && res.data.error) {
+            if (verbose) console.log(`eth_getTransactionReceipt from valdator error: ${res.data.error} `)
+          }
         }
-        result = res.data.transactions
-          ? res.data.transactions[0]
-            ? res.data.transactions[0].wrappedEVMAccount.readableReceipt
+        if (!result && config.queryFromArchiver) {
+          if (verbose) console.log('querying eth_getTransactionReceipt from archiver')
+  
+          res = await axios.get(`${getArchiverUrl().url}/transaction?accountId=${txHash.substring(2)}`)
+          if (verbose) {
+            console.log('url', `${getArchiverUrl().url}/transaction?accountId=${txHash.substring(2)}`)
+            console.log('res', JSON.stringify(res.data))
+          }
+  
+          result = res.data.transactions ? res.data.transactions.data.readableReceipt : null
+        } else if (!result && config.queryFromExplorer) {
+          console.log('querying eth_getTransactionReceipt from explorer', txHash)
+          // const explorerUrl = `http://${config.explorerInfo.ip}:${config.explorerInfo.port}`
+          const explorerUrl = config.explorerUrl
+  
+          res = await axios.get(`${explorerUrl}/api/transaction?txHash=${txHash}`)
+          if (verbose) {
+            console.log('url', `${explorerUrl}/api/transaction?txHash=${txHash}`)
+            console.log('res', JSON.stringify(res.data))
+          }
+          result = res.data.transactions
+            ? res.data.transactions[0]
+              ? res.data.transactions[0].wrappedEVMAccount.readableReceipt
+              : null
             : null
-          : null
+        }
       }
+      
       // console.log('url', `${config.explorerInfo.ip}:${config.explorerInfo.port}/api/transaction?txHash=${txHash}`)
       if (result) {
         if (!result.to || result.to == '') result.to = null
