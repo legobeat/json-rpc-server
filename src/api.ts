@@ -1,7 +1,7 @@
 import axios from 'axios'
 import WebSocket from 'ws'
 import { serializeError } from 'eth-rpc-errors'
-import { BN, bufferToHex, isHexPrefixed, keccak256 } from 'ethereumjs-util'
+import { BN, bufferToHex, isHexPrefixed, isValidAddress, keccak256 } from 'ethereumjs-util'
 import {
   calculateInternalTxHash,
   getAccount,
@@ -33,7 +33,8 @@ import { subscriptionEventEmitter } from './websocket'
 import { evmLogProvider_ConnectionStream } from './websocket/distributor'
 import * as Types from './types'
 import { addEntry, checkEntry, getGasEstimate, removeEntry } from './service/gasEstimate'
-import { collectorAPI } from './collector'
+import { collectorAPI } from './external/Collector'
+import { serviceValidator } from './external/ServiceValidator'
 
 export const verbose = config.verbose
 const MAX_ESTIMATE_GAS = new BN(30_000_000)
@@ -542,10 +543,33 @@ export const methods = {
     if (verbose) {
       console.log('Running eth_getBalance', args)
     }
-    let balance = '0x0'
+
+    let address
+    try {
+      address = args[0]
+    } catch (e) {
+      if (verbose) console.log('Unable to get address', e)
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, '0x')
+      return
+    }
+    if (!isValidAddress(address)) {
+      if (verbose) console.log('Invalid address', address)
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, '0x')
+      return
+    }
+
+    let balance = await serviceValidator.getBalance(address)
+    if (balance) {
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, intStringToHex(balance))
+      return
+    }
+
+    balance = '0x0'
     let nodeUrl
     try {
-      const address = args[0]
       if (verbose) console.log('address', address)
       if (verbose) console.log('ETH balance', typeof balance, balance)
       const res = await getAccount(address)
@@ -589,6 +613,30 @@ export const methods = {
     if (verbose) {
       console.log('Running getTransactionCount', args)
     }
+
+    let address
+    try {
+      address = args[0]
+    } catch (e) {
+      if (verbose) console.log('Unable to get address', e)
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, '0x')
+      return
+    }
+    if (!isValidAddress(address)) {
+      if (verbose) console.log('Invalid address', address)
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, '0x')
+      return
+    }
+
+    let nonce = await serviceValidator.getTransactionCount(address)
+    if (nonce) {
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, intStringToHex(nonce))
+      return
+    }
+
     let nodeUrl
     try {
       const address = args[0]
@@ -684,6 +732,30 @@ export const methods = {
     if (verbose) {
       console.log('Running getCode', args)
     }
+
+    let contractAddress
+    try {
+      contractAddress = args[0]
+    } catch (e) {
+      console.log('Unable to get contract address', e)
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, '0x')
+      return
+    }
+    if (!isValidAddress(contractAddress)) {
+      console.log('Invalid contract address', contractAddress)
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, '0x')
+      return
+    }
+
+    const code = await serviceValidator.getContractCode(args[0])
+    if (code) {
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, code)
+      return
+    }
+
     let nodeUrl
     try {
       const res = await getCode(args[0])
@@ -994,6 +1066,14 @@ export const methods = {
       callObj['from'] = '0x2041B9176A4839dAf7A4DcC6a97BA023953d9ad9'
     }
     if (verbose) console.log('callObj', callObj)
+
+    let response = await serviceValidator.ethCall(callObj)
+    if (response) {
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, '0x' + response)
+      return
+    }
+
     try {
       const res = await requestWithRetry(RequestMethod.Post, `/contract/call`, callObj)
       const nodeUrl = res.data.nodeUrl
@@ -1078,6 +1158,9 @@ export const methods = {
         } else if (typeof res.data === 'string' && isHexPrefixed(res.data) && res.data !== '0x') {
           originalEstimate = hexToBN(res.data)
         }
+      } else if (config.gasEstimateMethod === 'serviceValidator') {
+        const gasEstimate = await serviceValidator.estimateGas(args[0])
+        if (gasEstimate) originalEstimate = hexToBN(gasEstimate)
       }
 
       if (!originalEstimate.isZero()) {
@@ -1178,7 +1261,7 @@ export const methods = {
       s: '0x4ba69724e8f69de52f0125ad8b3c5c2cef33019bac3249e2c0a2192766d1721c',
     }
     result = await collectorAPI.getTransactionByHash(txHash)
-    if(result) {
+    if (result) {
       success = true
       retry = 100
     }
@@ -1313,7 +1396,7 @@ export const methods = {
       let result
       const txHash = args[0]
       result = await collectorAPI.getTransactionByHash(txHash)
-      
+
       if (config.queryFromValidator && !result) {
         res = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
         nodeUrl = res.data.nodeUrl
@@ -1576,7 +1659,7 @@ export const methods = {
       console.log('filter changes request', request)
       // try sourcing from collector api server
       updates = await collectorAPI.getLogsByFilter(request)
-      if(updates.length === 0) {
+      if (updates.length === 0) {
         // fallback to explorer
         updates = await getLogsFromExplorer(request)
       }
@@ -1631,9 +1714,9 @@ export const methods = {
       if (logFilter.fromBlock) {
         request.fromBlock = String(logFilter.fromBlock)
       }
-      if(CONFIG.collectorSourcing.enabled) {
+      if (CONFIG.collectorSourcing.enabled) {
         logs = await collectorAPI.getLogsByFilter(request)
-        if(logs.length > 0) {
+        if (logs.length > 0) {
           callback(null, logs)
           logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
           return
@@ -1704,9 +1787,9 @@ export const methods = {
         request.toBlock = res.data.block.number
       }
     }
-    if(CONFIG.collectorSourcing.enabled) {
+    if (CONFIG.collectorSourcing.enabled) {
       logs = await collectorAPI.getLogsByFilter(request)
-      if(logs.length > 0) {
+      if (logs.length > 0) {
         callback(null, logs)
         logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
         return
@@ -2037,6 +2120,13 @@ export const methods = {
       callObj['from'] = '0x2041B9176A4839dAf7A4DcC6a97BA023953d9ad9'
     }
     console.log('callObj', callObj)
+
+    const accessList = await serviceValidator.getAccessList(callObj)
+    if (accessList) {
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, accessList)
+      return
+    }
 
     let nodeUrl
     try {

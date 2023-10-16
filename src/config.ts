@@ -79,6 +79,10 @@ type Config = {
     enabled: boolean
     collectorApiServerUrl: string
   }
+  serviceValidatorSourcing: {
+    enabled: boolean
+    serviceValidatorUrl: string
+  }
 }
 
 export const CONFIG: Config = {
@@ -110,7 +114,7 @@ export const CONFIG: Config = {
   generateTxTimestamp: true,
   nodelistRefreshInterval: 5000,
   defaultRequestRetry: 5,
-  gasEstimateMethod: 'validator',
+  gasEstimateMethod: 'serviceValidator',
   gasEstimateInvalidationIntervalInMs: 1000 * 60 * 60 * 2, // 2 hours
   gasEstimateUseCache: false,
   defaultRequestTimeout: {
@@ -149,6 +153,10 @@ export const CONFIG: Config = {
   nodeExternalIpForRemoteLocalNetwork: '127.0.0.1',
   collectorSourcing: {
     enabled: true,
-    collectorApiServerUrl: 'http://0.0.0.0:6001'
-  }
+    collectorApiServerUrl: 'http://0.0.0.0:6001',
+  },
+  serviceValidatorSourcing: {
+    enabled: true,
+    serviceValidatorUrl: 'http://0.0.0.0:9001',
+  },
 }

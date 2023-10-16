@@ -1,79 +1,80 @@
-import axios from "axios";
-import { buildLogAPIUrl, verbose } from "../api";
-import { CONFIG } from "../config";
-import { LogFilter, LogQueryRequest } from "../types";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import axios from 'axios'
+import { buildLogAPIUrl, verbose } from '../api'
+import { CONFIG } from '../config'
+import { LogQueryRequest } from '../types'
 
-
-class Collector{
+class Collector {
   URL: string
   constructor(baseURL: string) {
     this.URL = baseURL
   }
 
- async getLogsByFilter(request: LogQueryRequest): Promise<any[]> {
+  async getLogsByFilter(request: LogQueryRequest): Promise<any[]> {
     if (!CONFIG.collectorSourcing.enabled) return []
-    let updates: any[] = []
+
+    /* prettier-ignore */ if (verbose) console.log(`Collector: getLogsByFilter call for request: ${JSON.stringify(request)}`)
+
+    let filteredLogs: any[] = []
     let currentPage = 1
 
     try {
       if (request == null) return []
-      let baseUrl = buildLogAPIUrl(request, this.URL)
-      let fullUrl = baseUrl + `&page=${currentPage}`
+      const baseUrl = buildLogAPIUrl(request, this.URL)
+      const fullUrl = baseUrl + `&page=${currentPage}`
       if (CONFIG.verbose) console.log(`getLogsFromCollector fullUrl: ${fullUrl}`)
       let res = await axios.get(fullUrl)
 
       if (res.data && res.data.success && res.data.logs.length > 0) {
         const logs = res.data.logs.map((item: any) => item.log)
-        updates = updates.concat(logs)
+        filteredLogs = filteredLogs.concat(logs)
         currentPage += 1
         const totalPages = res.data.totalPages
         while (currentPage <= totalPages) {
           res = await axios.get(`${baseUrl}&page=${currentPage}`)
           if (res.data && res.data.success) {
             const logs = res.data.logs.map((item: any) => item.log)
-            updates = updates.concat(logs)
+            filteredLogs = filteredLogs.concat(logs)
           }
           currentPage += 1
         }
       }
     } catch (e) {
-      console.error(`Error getting filter updates`, e)
+      console.error(`Collector: Error getting logs by filter`, e)
       return []
     }
-    return updates
+    return filteredLogs
   }
 
- async getTransactionByHash(txHash: string): Promise<readableReceipt | null> {
+  async getTransactionByHash(txHash: string): Promise<readableReceipt | null> {
     if (!CONFIG.collectorSourcing.enabled) return null
     try {
-      let fullUrl = `${this.URL}/api/transaction?txHash=${txHash}`;
-      let res = await axios.get(fullUrl);
-      
+      const fullUrl = `${this.URL}/api/transaction?txHash=${txHash}`
+      const res = await axios.get(fullUrl)
+
       if (verbose) {
-        console.log('url', `${this.URL}/api/transaction?txHash=${txHash}`);
-        console.log('res', JSON.stringify(res.data));
+        console.log('url', `${this.URL}/api/transaction?txHash=${txHash}`)
+        console.log('res', JSON.stringify(res.data))
       }
 
-      if(!res.data.success) return null
+      if (!res.data.success) return null
 
-      let result = res.data.transactions
+      const result = res.data.transactions
         ? res.data.transactions[0]
           ? res.data.transactions[0].wrappedEVMAccount.readableReceipt
           : null
-        : null;
+        : null
 
-      if (verbose) { 
-        console.log(`local_receipt sourced: ${result}`);
+      if (verbose) {
+        console.log(`local_receipt sourced: ${result}`)
       }
-      
-      return result;
+
+      return result
     } catch (error) {
-      console.error('An error occurred:', error);
-      return null;
+      console.error('An error occurred:', error)
+      return null
     }
   }
-
-
 }
 
 type readableReceipt = {
@@ -92,6 +93,5 @@ type readableReceipt = {
   transactionHash: string
   gasUsed: string
 }
-
 
 export const collectorAPI = new Collector(CONFIG.collectorSourcing.collectorApiServerUrl)
