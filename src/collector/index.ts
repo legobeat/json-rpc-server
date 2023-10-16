@@ -49,8 +49,8 @@ class Collector{
       let res = await axios.get(fullUrl);
       
       if (verbose) {
-        console.log('url for getTransactionByHash', `${this.URL}/api/transaction?txHash=${txHash}`);
-        console.log('res getTransactionByHash', JSON.stringify(res.data));
+        console.log('url', `${this.URL}/api/transaction?txHash=${txHash}`);
+        console.log('res', JSON.stringify(res.data));
       }
 
       if(!res.data.success) return null
@@ -62,44 +62,17 @@ class Collector{
         : null;
 
       if (verbose) { 
-        console.log(`local_receipt sourced for getTransactionByHash: ${result}`);
+        console.log(`local_receipt sourced: ${result}`);
       }
       
       return result;
     } catch (error) {
-      console.error('An error occurred for getTransactionByHash:', error);
+      console.error('An error occurred:', error);
       return null;
     }
   }
 
- async getTransactionReciept(txHash: string): Promise<completeReadableReciept | null> {
-    try {
-      let fullUrl = `${this.URL}/api/transaction?txHash=${txHash}`;
-      let res = await axios.get(fullUrl);
-      
-      if (verbose) {
-        console.log('url for getTransactionReciept', `${this.URL}/api/transaction?txHash=${txHash}`);
-        console.log('res getTransactionReciept', JSON.stringify(res.data));
-      }
 
-      if(!res.data.success) return null
-
-      let result = res.data.transactions
-        ? res.data.transactions[0]
-          ? res.data.transactions[0].wrappedEVMAccount.readableReceipt
-          : null
-        : null;
-
-      if (verbose) { 
-        console.log(`local_receipt sourced for getTransactionReciept: ${result}`);
-      }
-      
-      return result;
-    } catch (error) {
-      console.error('An error occurred for getTransactionReciept:', error);
-      return null;
-    }
-  }
 }
 
 type readableReceipt = {
@@ -119,23 +92,5 @@ type readableReceipt = {
   gasUsed: string
 }
 
-type completeReadableReciept = {
-  blockHash: string
-  blockNumber: string
-  contractAddress: string
-  cumulativeGasUsed: string
-  data: string
-  from: string
-  gasRefund: string
-  gasUsed: string
-  logs: any[]
-  logsBloom: string
-  nonce: string
-  status: string
-  to: string
-  transactionHash: string
-  transactionIndex: string
-  value: string
-}
 
 export const collectorAPI = new Collector(CONFIG.collectorSourcing.collectorApiServerUrl)
