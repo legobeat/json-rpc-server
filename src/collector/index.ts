@@ -44,6 +44,7 @@ class Collector{
   }
 
  async getTransactionByHash(txHash: string): Promise<readableReceipt | null> {
+    if (!CONFIG.collectorSourcing.enabled) return null
     try {
       let fullUrl = `${this.URL}/api/transaction?txHash=${txHash}`;
       let res = await axios.get(fullUrl);
