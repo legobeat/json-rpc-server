@@ -486,6 +486,14 @@ export const methods = {
     if (verbose) {
       console.log('Running eth_gasPrice', args)
     }
+
+    const gasPrice = await serviceValidator.getGasPrice()
+    if (gasPrice) {
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, gasPrice)
+      return
+    }
+
     const fallbackGasPrice = '0x3f84fc7516' // 1 Gwei
     try {
       const { result } = await getGasPrice()

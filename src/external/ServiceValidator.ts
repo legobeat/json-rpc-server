@@ -79,6 +79,26 @@ class ServiceValidator extends BaseExternal {
     }
   }
 
+  async getGasPrice(): Promise<string | null> {
+    if (!CONFIG.serviceValidatorSourcing.enabled) return null
+
+    /* prettier-ignore */ if (verbose) console.log(`ServiceValidator: getGasPrice call`)
+    const requestConfig: AxiosRequestConfig = {
+      method: 'get',
+      url: `${this.baseUrl}/eth_gasPrice`,
+      headers: this.defaultHeaders,
+    }
+    /* prettier-ignore */ if (verbose) console.log(`ServiceValidator: getGasPrice requestConfig: ${JSON.stringify(requestConfig)}`)
+    try {
+      const res = await axiosWithRetry<{ result: string }>(requestConfig)
+      /* prettier-ignore */ if (verbose) console.log(`ServiceValidator: getGasPrice res: ${JSON.stringify(res.data)}`)
+      return res.data.result
+    } catch (e) {
+      console.error(`ServiceValidator: Error getting gas price`, e)
+      return null
+    }
+  }
+
   async estimateGas(callObj: any): Promise<string | null> {
     if (!CONFIG.serviceValidatorSourcing.enabled) return null
 
