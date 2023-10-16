@@ -1382,6 +1382,8 @@ export const methods = {
         if (result.logs == null) result.logs = []
         if (result.status == 0) result.status = '0x0'
         if (result.status == 1) result.status = '0x1'
+        result.effectiveGasPrice = result.gasUsed //The total base charge plus tip paid for each unit of gas tip is zero for shardeum
+        result.type = '0x02' // https://eips.ethereum.org/EIPS/eip-2718#receipts
         if (verbose) console.log(`getTransactionReceipt result for ${txHash}`, result)
       }
       callback(null, result)
