@@ -1,5 +1,5 @@
 import axios from "axios";
-import { buildLogAPIUrl } from "../api";
+import { buildLogAPIUrl, verbose } from "../api";
 import { CONFIG } from "../config";
 import { LogFilter, LogQueryRequest } from "../types";
 
@@ -42,8 +42,56 @@ class Collector{
     }
     return updates
   }
+
+ async getTransactionByHash(txHash: string): Promise<readableReceipt | null> {
+    try {
+      let fullUrl = `${this.URL}/api/transaction?txHash=${txHash}`;
+      let res = await axios.get(fullUrl);
+      
+      if (verbose) {
+        console.log('url', `${this.URL}/api/transaction?txHash=${txHash}`);
+        console.log('res', JSON.stringify(res.data));
+      }
+
+      if(!res.data.success) return null
+
+      let result = res.data.transactions
+        ? res.data.transactions[0]
+          ? res.data.transactions[0].wrappedEVMAccount.readableReceipt
+          : null
+        : null;
+
+      if (verbose) { 
+        console.log(`local_receipt sourced: ${result}`);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('An error occurred:', error);
+      return null;
+    }
+  }
+
+
 }
 
+type readableReceipt = {
+  blockHash: string
+  blockNumber: string
+  from: string
+  gas: string
+  gasPrice: string
+  hash: string
+  input: string
+  nonce: string
+  to: string
+  transactionIndex: string
+  value: string
+  contractAddress: string
+  data: string
+  transactionHash: string
+  gasUsed: string
+}
 
 
 export const collectorAPI = new Collector(CONFIG.collectorSourcing.collectorApiServerUrl)
