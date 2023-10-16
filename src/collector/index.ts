@@ -88,7 +88,6 @@ type readableReceipt = {
   transactionIndex: string
   value: string
   contractAddress: string
-  data: string
   transactionHash: string
   gasUsed: string
 }

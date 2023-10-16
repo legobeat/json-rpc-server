@@ -1258,7 +1258,6 @@ export const methods = {
     defaultResult.to = result.to
     defaultResult.nonce = result.nonce.indexOf('0x') === -1 ? '0x' + result.nonce : result.nonce
     defaultResult.contractAddress = result.contractAddress
-    defaultResult.data = result.data
     defaultResult.blockHash = result.blockHash
     defaultResult.blockNumber = result.blockNumber
     defaultResult.value = result.value.indexOf('0x') === -1 ? '0x' + result.value : result.value
