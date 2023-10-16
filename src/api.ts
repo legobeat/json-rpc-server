@@ -1642,6 +1642,14 @@ export const methods = {
       if (logFilter.fromBlock) {
         request.fromBlock = String(logFilter.fromBlock)
       }
+      if(CONFIG.collectorSourcing.enabled) {
+        logs = await collectorAPI.getLogsByFilter(request)
+        if(logs.length > 0) {
+          callback(null, logs)
+          logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+          return
+        }
+      }
       logs = await getLogsFromExplorer(request)
     } else {
       console.error(`eth_getFilterChanges: filter not found: ${filterId}`)
