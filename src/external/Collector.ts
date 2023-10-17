@@ -3,11 +3,13 @@ import axios from 'axios'
 import { buildLogAPIUrl, verbose } from '../api'
 import { CONFIG } from '../config'
 import { LogQueryRequest } from '../types'
+import { BaseExternal } from './BaseExternal'
 
-class Collector {
-  URL: string
+class Collector extends BaseExternal {
   constructor(baseURL: string) {
-    this.URL = baseURL
+    super(baseURL, 3, {
+      'Content-Type': 'application/json',
+    })
   }
 
   async getLogsByFilter(request: LogQueryRequest): Promise<any[]> {
@@ -20,9 +22,9 @@ class Collector {
 
     try {
       if (request == null) return []
-      const baseUrl = buildLogAPIUrl(request, this.URL)
+      const baseUrl = buildLogAPIUrl(request, this.baseUrl)
       const fullUrl = baseUrl + `&page=${currentPage}`
-      if (CONFIG.verbose) console.log(`getLogsFromCollector fullUrl: ${fullUrl}`)
+      /* prettier-ignore */ if (CONFIG.verbose) console.log(`Collector: getLogsFromCollector fullUrl: ${fullUrl}`)
       let res = await axios.get(fullUrl)
 
       if (res.data && res.data.success && res.data.logs.length > 0) {
@@ -48,14 +50,18 @@ class Collector {
 
   async getTransactionByHash(txHash: string): Promise<readableReceipt | null> {
     if (!CONFIG.collectorSourcing.enabled) return null
-    try {
-      const fullUrl = `${this.URL}/api/transaction?txHash=${txHash}`
-      const res = await axios.get(fullUrl)
 
-      if (verbose) {
-        console.log('url', `${this.URL}/api/transaction?txHash=${txHash}`)
-        console.log('res', JSON.stringify(res.data))
-      }
+    /* prettier-ignore */ if (verbose) console.log(`Collector: getTransactionByHash call for txHash: ${txHash}`)
+    const requestConfig = {
+      method: 'get',
+      url: `${this.baseUrl}/api/transaction?txHash=${txHash}`,
+      headers: this.defaultHeaders,
+    }
+
+    try {
+      const fullUrl = `${this.baseUrl}/api/transaction?txHash=${txHash}`
+      /* prettier-ignore */ if (verbose) console.log(`Collector: getTransactionByHash fullUrl: ${fullUrl}`)
+      const res = await axios.get(fullUrl)
 
       if (!res.data.success) return null
 
@@ -65,13 +71,10 @@ class Collector {
           : null
         : null
 
-      if (verbose) {
-        console.log(`local_receipt sourced: ${result}`)
-      }
-
+      /* prettier-ignore */ if (verbose) console.log(`Collector: getTransactionByHash result: ${JSON.stringify(result)}`)
       return result
     } catch (error) {
-      console.error('An error occurred:', error)
+      console.error('Collector: Error getting transaction by hash', error)
       return null
     }
   }

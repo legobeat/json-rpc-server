@@ -139,7 +139,6 @@ class ServiceValidator extends BaseExternal {
       console.error(`ServiceValidator: Error getting access list`, e)
       return null
     }
-    return null
   }
 
   async ethCall(callObj: any): Promise<string | null> {
