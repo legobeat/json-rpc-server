@@ -1916,7 +1916,7 @@ export const methods = {
 
     try {
       const txHash = args[0]
-      const states = await fetchStorage(txHash)
+      const states = CONFIG.collectorSourcing.enabled? await collectorAPI.fetchLocalStorage(txHash) : await fetchStorage(txHash)
       const storageObject: { [key: string]: any } = {}
       states.forEach((state) => {
         const keyBuf = parseAndValidateStringInput(state.key)

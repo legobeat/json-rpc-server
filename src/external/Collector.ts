@@ -4,6 +4,8 @@ import { buildLogAPIUrl, verbose } from '../api'
 import { CONFIG } from '../config'
 import { LogQueryRequest } from '../types'
 import { BaseExternal } from './BaseExternal'
+import { bufferToHex } from 'ethereumjs-util'
+
 
 class Collector extends BaseExternal {
   constructor(baseURL: string) {
@@ -78,6 +80,37 @@ class Collector extends BaseExternal {
       return null
     }
   }
+
+  async fetchLocalTxReceipt(txHash: string, hashReceipt = false) {
+    const apiQuery = `${this.baseUrl}/api/transaction?txHash=${txHash}`
+    const response = await axios.get(apiQuery).then((response) => {
+      if (!response) {
+        throw new Error('Failed to fetch transaction')
+      } else return response
+    })
+  
+    if (hashReceipt) {
+      return response.data.transactions[0]
+    }
+  
+    const txId = response.data.transactions[0].txId
+    const receiptQuery = `${this.baseUrl}/api/receipt?txId=${txId}`
+    const receipt = await axios.get(receiptQuery).then((response) => response.data.receipts)
+    return receipt
+  }
+  
+  async fetchLocalStorage(txHash: string) {
+    const receipt = await this.fetchLocalTxReceipt(txHash)
+    const beforeStates: any[] = receipt.beforeStateAccounts
+    const storageRecords = beforeStates.map((account) => {
+      return {
+        key: `${account.data.key}`,
+        value: bufferToHex(account.data.value.data),
+      }
+    })
+    return storageRecords
+  }
+
 }
 
 type readableReceipt = {
