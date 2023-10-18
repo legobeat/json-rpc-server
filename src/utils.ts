@@ -1334,7 +1334,10 @@ export async function replayTransaction(txHash: string, flag: string) {
   if (fs.existsSync(path.join(transactionsFolder, txHash + '.json'))) {
     receipt = JSON.parse(fs.readFileSync(path.join(transactionsFolder, txHash + '.json'), 'utf8'))
   } else {
-    receipt = config.collectorSourcing? await collectorAPI.fetchLocalTxReceipt(txHash) : await fetchTxReceipt(config.explorerUrl, txHash)
+    receipt = await collectorAPI.fetchLocalTxReceipt(txHash) 
+    if(!receipt){
+      receipt = await fetchTxReceipt(config.explorerUrl, txHash)
+    } 
     fs.writeFileSync(path.join(transactionsFolder, txHash + '.json'), JSON.stringify(receipt, undefined, 2))
   }
 

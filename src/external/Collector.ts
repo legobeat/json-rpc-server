@@ -81,7 +81,40 @@ class Collector extends BaseExternal {
     }
   }
 
+  async getTransactionReciept(txHash: string): Promise<completeReadableReciept | null> {
+    if (!CONFIG.collectorSourcing.enabled) return null
+
+    try {
+      let fullUrl = `${this.baseUrl}/api/transaction?txHash=${txHash}`;
+      let res = await axios.get(fullUrl);
+      
+      if (verbose) {
+        console.log('url for getTransactionReciept', `${this.baseUrl}/api/transaction?txHash=${txHash}`);
+        console.log('res getTransactionReciept', JSON.stringify(res.data));
+      }
+
+      if(!res.data.success) return null
+
+      let result = res.data.transactions
+        ? res.data.transactions[0]
+          ? res.data.transactions[0].wrappedEVMAccount.readableReceipt
+          : null
+        : null;
+
+      if (verbose) { 
+        console.log(`local_receipt sourced for getTransactionReciept: ${result}`);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('An error occurred for getTransactionReciept:', error);
+      return null;
+    }
+  }
+
   async fetchLocalTxReceipt(txHash: string, hashReceipt = false) {
+    if (!CONFIG.collectorSourcing.enabled) return null
+
     const apiQuery = `${this.baseUrl}/api/transaction?txHash=${txHash}`
     const response = await axios.get(apiQuery).then((response) => {
       if (!response) {
@@ -100,6 +133,8 @@ class Collector extends BaseExternal {
   }
   
   async fetchLocalStorage(txHash: string) {
+    if (!CONFIG.collectorSourcing.enabled) return null
+
     const receipt = await this.fetchLocalTxReceipt(txHash)
     const beforeStates: any[] = receipt.beforeStateAccounts
     const storageRecords = beforeStates.map((account) => {
@@ -129,5 +164,25 @@ type readableReceipt = {
   transactionHash: string
   gasUsed: string
 }
+
+type completeReadableReciept = {
+  blockHash: string
+  blockNumber: string
+  contractAddress: string
+  cumulativeGasUsed: string
+  data: string
+  from: string
+  gasRefund: string
+  gasUsed: string
+  logs: any[]
+  logsBloom: string
+  nonce: string
+  status: string
+  to: string
+  transactionHash: string
+  transactionIndex: string
+  value: string
+}
+
 
 export const collectorAPI = new Collector(CONFIG.collectorSourcing.collectorApiServerUrl)
