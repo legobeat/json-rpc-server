@@ -12,6 +12,7 @@ import { getArchiverList, getFromArchiver } from '@shardus/archiver-discovery'
 import { Archiver } from '@shardus/archiver-discovery/dist/src/types'
 import execa from 'execa'
 import { spawn } from 'child_process'
+import { collectorAPI } from './external/Collector'
 
 const crypto = require('@shardus/crypto-utils')
 
@@ -1333,7 +1334,7 @@ export async function replayTransaction(txHash: string, flag: string) {
   if (fs.existsSync(path.join(transactionsFolder, txHash + '.json'))) {
     receipt = JSON.parse(fs.readFileSync(path.join(transactionsFolder, txHash + '.json'), 'utf8'))
   } else {
-    receipt = await fetchTxReceipt(config.explorerUrl, txHash)
+    receipt = config.collectorSourcing? await collectorAPI.fetchLocalTxReceipt(txHash) : await fetchTxReceipt(config.explorerUrl, txHash)
     fs.writeFileSync(path.join(transactionsFolder, txHash + '.json'), JSON.stringify(receipt, undefined, 2))
   }
 
