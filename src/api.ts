@@ -1208,11 +1208,16 @@ export const methods = {
     if (verbose) {
       console.log('Running getBlockByHash', args)
     }
+    let result = null
     //getCurrentBlock handles errors, no try catch needed
-    const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${args[0]}`)
-
+    result = await collectorAPI.getBlock(parseInt(args[0]))
+    if(!result) {
+      const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${args[0]}`)
+      result = res.data.block
+    }
+    
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-    callback(null, res.data.block)
+    callback(null, result)
   },
   eth_getBlockByNumber: async function (args: any, callback: any) {
     const api_name = 'eth_getBlockByNumber'
@@ -1224,17 +1229,23 @@ export const methods = {
     if (verbose) {
       console.log('Running getBlockByNumber', args)
     }
+    let result = null
+    let nodeUrl = null
     let blockNumber = args[0]
     if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
-    const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByNumber?blockNumber=${blockNumber}`)
-    const nodeUrl = res.data.nodeUrl
-    const result = res.data.block
+    
+    result = await collectorAPI.getBlock(blockNumber)
+    if (!result) {
+      const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByNumber?blockNumber=${blockNumber}`)
+      result = res.data.block
+      nodeUrl = res.data.nodeUrl
+    }
     if (verbose) console.log('BLOCK DETAIL', result)
     callback(null, result)
     logEventEmitter.emit(
       'fn_end',
       ticket,
-      { nodeUrl, success: res.data.block ? true : false },
+      { nodeUrl, success: result ? true : false },
       performance.now()
     )
   },

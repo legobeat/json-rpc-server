@@ -146,6 +146,21 @@ class Collector extends BaseExternal {
     return storageRecords
   }
 
+  async getBlock(key: string | number): Promise<any | null>{
+    if (!CONFIG.collectorSourcing.enabled) return null
+    try{
+      let apiQuery = `${this.baseUrl}/eth_getBlockByNumber?blockNumber=${key}`
+      if(typeof key === 'string'){
+        apiQuery = `${this.baseUrl}/eth_getBlockByHash?blockHash=${key}`
+      }
+      const response = await axios.get(apiQuery).then((response) => response.data)
+      return response
+    }catch(e){
+      console.error('An error occurred for Collector.getBlock:', e)
+      return null
+    }
+  }
+
 }
 
 type readableReceipt = {
