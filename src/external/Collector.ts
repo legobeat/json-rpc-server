@@ -146,14 +146,20 @@ class Collector extends BaseExternal {
     return storageRecords
   }
 
-  async getBlock(key: string | number): Promise<any | null>{
+  async getBlock(key: string, inpType: 'hex_num' | 'hash'): Promise<any | null>{
     if (!CONFIG.collectorSourcing.enabled) return null
     try{
-      let apiQuery = `${this.baseUrl}/eth_getBlockByNumber?blockNumber=${key}`
-      if(typeof key === 'string'){
-        apiQuery = `${this.baseUrl}/eth_getBlockByHash?blockHash=${key}`
+      let apiQuery;
+      if(inpType === 'hex_num'){
+        // int to hex
+        apiQuery = `${this.baseUrl}/api/blocks?numberHex=${key}&details=true`
+      }
+      else{
+        apiQuery = `${this.baseUrl}/api/blocks?hash=${key}&details=true`
       }
       const response = await axios.get(apiQuery).then((response) => response.data)
+      if(!response.success) return null
+      delete response.success
       return response
     }catch(e){
       console.error('An error occurred for Collector.getBlock:', e)
