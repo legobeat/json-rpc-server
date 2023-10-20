@@ -33,7 +33,6 @@ import { subscriptionEventEmitter } from './websocket'
 import { evmLogProvider_ConnectionStream } from './websocket/distributor'
 import * as Types from './types'
 import { addEntry, checkEntry, getGasEstimate, removeEntry } from './service/gasEstimate'
-import { Transaction } from '@ethereumjs/tx'
 
 export const verbose = config.verbose
 const MAX_ESTIMATE_GAS = new BN(30_000_000)
