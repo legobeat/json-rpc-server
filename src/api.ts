@@ -690,38 +690,6 @@ export const methods = {
     }
   },
   eth_getBlockTransactionCountByHash: async function (args: any, callback: any) {
-    /*
-    const api_name = 'eth_getBlockTransactionCountByHash'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    if (verbose) {
-      console.log('Running getBlockTransactionCountByHash', args)
-    }
-    const result = '0xb'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-    */
-    /*
-    const api_name = 'eth_getBlockTransactionCountByHash'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running eth_getBlockTransactionCountByHash', args)
-    }
-    //getCurrentBlock handles errors, no try catch needed
-    //const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockTransactionCountByHash?blockHash=${args[0]}`)
-
-
-    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-    callback(null, res.data.block)
-    */
     const api_name = 'eth_getBlockTransactionCountByHash'
     const ticket = crypto
       .createHash('sha1')
@@ -766,21 +734,6 @@ export const methods = {
     }
   },
   eth_getBlockTransactionCountByNumber: async function (args: any, callback: any) {
-    /*
-    const api_name = 'eth_getBlockTransactionCountByNumber'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running getBlockTransactionCountByNumber', args)
-    }
-
-    const result = '0xa'
-    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-    callback(null, result)
-    */
     const api_name = 'eth_getBlockTransactionCountByNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -1533,20 +1486,6 @@ export const methods = {
     callback(null, defaultResult)
   },
   eth_getTransactionByBlockHashAndIndex: async function (args: any, callback: any) {
-    /*
-    const api_name = 'eth_getTransactionByBlockHashAndIndex'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running getTransactionByBlockHashAndIndex', args)
-    }
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-    */
     const api_name = 'eth_getTransactionByBlockHashAndIndex'
     const ticket = crypto
       .createHash('sha1')
@@ -1592,20 +1531,6 @@ export const methods = {
     }
   },
   eth_getTransactionByBlockNumberAndIndex: async function (args: any, callback: any) {
-    /*
-    const api_name = 'eth_getTransactionByBlockNumberAndIndex'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running getTransactionByBlockNumberAndIndex', args)
-    }
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-    */
     const api_name = 'eth_getTransactionByBlockNumberAndIndex'
     const ticket = crypto
       .createHash('sha1')
