@@ -95,7 +95,7 @@ function extractTransactionObject(bigTransaction: any, transactionIndexArg: numb
     gasPrice: bigTransaction.wrappedEVMAccount.readableReceipt.gasPrice,
     maxFeePerGas: undefined,
     maxPriorityFeePerGas: undefined,
-    hash: bigTransaction.transactionHash,
+    hash: bigTransaction.txHash,
     input: '',
     nonce: bigTransaction.wrappedEVMAccount.readableReceipt.nonce,
     to: bigTransaction.wrappedEVMAccount.readableReceipt.to,
@@ -123,8 +123,8 @@ function extractTransactionReceiptObject(bigTransaction: any, transactionIndexAr
     logsBloom: bigTransaction.wrappedEVMAccount.readableReceipt.logsBloom,
     status: bigTransaction.wrappedEVMAccount.readableReceipt.status,
     to: bigTransaction.wrappedEVMAccount.readableReceipt.to,
-    transactionHash: bigTransaction.transactionHash,
-    transactionIndex: transactionIndexArg.toString(16),
+    transactionHash: bigTransaction.txHash,
+    transactionIndex: '0x' + transactionIndexArg.toString(16),
     type: bigTransaction.transactionType,
   }
 }
@@ -1513,7 +1513,7 @@ export const methods = {
         console.log('res', JSON.stringify(res.data))
       }
 
-      let result = res.data.transactions[index]
+      let result = extractTransactionObject(res.data.transactions[index], index)
 
       const nodeUrl = config.explorerUrl
       if (verbose) console.log('TRANSACTION DETAIL', result)
