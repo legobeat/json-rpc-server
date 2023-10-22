@@ -85,47 +85,55 @@ export type DetailedTxStatus = {
 let filtersMap: Map<string, Types.InternalFilter> = new Map()
 
 function extractTransactionObject(bigTransaction: any, transactionIndexArg: number) {
-  return {
-    blockHash: bigTransaction.wrappedEVMAccount.readableReceipt.blockHash,
-    blockNumber: bigTransaction.wrappedEVMAccount.readableReceipt.blockNumber,
-    from: bigTransaction.wrappedEVMAccount.readableReceipt.from,
-    gas:
-      bigTransaction.wrappedEVMAccount.readableReceipt.gasUsed +
-      bigTransaction.wrappedEVMAccount.readableReceipt.gasRefund,
-    gasPrice: bigTransaction.wrappedEVMAccount.readableReceipt.gasPrice,
-    maxFeePerGas: undefined,
-    maxPriorityFeePerGas: undefined,
-    hash: bigTransaction.txHash,
-    input: '',
-    nonce: bigTransaction.wrappedEVMAccount.readableReceipt.nonce,
-    to: bigTransaction.wrappedEVMAccount.readableReceipt.to,
-    transactionIndex: transactionIndexArg.toString(16),
-    value: bigTransaction.wrappedEVMAccount.readableReceipt.value,
-    type: bigTransaction.transactionType,
-    accessList: [],
-    chainId: bigTransaction.wrappedEVMAccount.readableReceipt.chainId,
-    v: bigTransaction.wrappedEVMAccount.readableReceipt.v,
-    r: bigTransaction.wrappedEVMAccount.readableReceipt.r,
-    s: bigTransaction.wrappedEVMAccount.readableReceipt.s,
+  if (bigTransaction) {
+    return {
+      blockHash: bigTransaction.wrappedEVMAccount.readableReceipt.blockHash,
+      blockNumber: bigTransaction.wrappedEVMAccount.readableReceipt.blockNumber,
+      from: bigTransaction.wrappedEVMAccount.readableReceipt.from,
+      gas:
+        bigTransaction.wrappedEVMAccount.readableReceipt.gasUsed +
+        bigTransaction.wrappedEVMAccount.readableReceipt.gasRefund,
+      gasPrice: bigTransaction.wrappedEVMAccount.readableReceipt.gasPrice,
+      maxFeePerGas: undefined,
+      maxPriorityFeePerGas: undefined,
+      hash: bigTransaction.txHash,
+      input: '',
+      nonce: bigTransaction.wrappedEVMAccount.readableReceipt.nonce,
+      to: bigTransaction.wrappedEVMAccount.readableReceipt.to,
+      transactionIndex: transactionIndexArg.toString(16),
+      value: bigTransaction.wrappedEVMAccount.readableReceipt.value,
+      type: bigTransaction.transactionType,
+      accessList: [],
+      chainId: bigTransaction.wrappedEVMAccount.readableReceipt.chainId,
+      v: bigTransaction.wrappedEVMAccount.readableReceipt.v,
+      r: bigTransaction.wrappedEVMAccount.readableReceipt.r,
+      s: bigTransaction.wrappedEVMAccount.readableReceipt.s,
+    }
+  } else {
+    return null
   }
 }
 
 function extractTransactionReceiptObject(bigTransaction: any, transactionIndexArg: number) {
-  return {
-    blockHash: bigTransaction.wrappedEVMAccount.readableReceipt.blockHash,
-    blockNumber: bigTransaction.wrappedEVMAccount.readableReceipt.blockNumber,
-    contractAddress: bigTransaction.wrappedEVMAccount.readableReceipt.contractAddress,
-    cumulativeGasUsed: bigTransaction.wrappedEVMAccount.readableReceipt.cumulativeGasUsed,
-    effectiveGasPrice: bigTransaction.wrappedEVMAccount.readableReceipt.gasPrice,
-    from: bigTransaction.wrappedEVMAccount.readableReceipt.from,
-    gasUsed: bigTransaction.wrappedEVMAccount.readableReceipt.gasUsed,
-    logs: bigTransaction.wrappedEVMAccount.readableReceipt.logs,
-    logsBloom: bigTransaction.wrappedEVMAccount.readableReceipt.logsBloom,
-    status: bigTransaction.wrappedEVMAccount.readableReceipt.status,
-    to: bigTransaction.wrappedEVMAccount.readableReceipt.to,
-    transactionHash: bigTransaction.txHash,
-    transactionIndex: '0x' + transactionIndexArg.toString(16),
-    type: bigTransaction.transactionType,
+  if (bigTransaction) {
+    return {
+      blockHash: bigTransaction.wrappedEVMAccount.readableReceipt.blockHash,
+      blockNumber: bigTransaction.wrappedEVMAccount.readableReceipt.blockNumber,
+      contractAddress: bigTransaction.wrappedEVMAccount.readableReceipt.contractAddress,
+      cumulativeGasUsed: bigTransaction.wrappedEVMAccount.readableReceipt.cumulativeGasUsed,
+      effectiveGasPrice: bigTransaction.wrappedEVMAccount.readableReceipt.gasPrice,
+      from: bigTransaction.wrappedEVMAccount.readableReceipt.from,
+      gasUsed: bigTransaction.wrappedEVMAccount.readableReceipt.gasUsed,
+      logs: bigTransaction.wrappedEVMAccount.readableReceipt.logs,
+      logsBloom: bigTransaction.wrappedEVMAccount.readableReceipt.logsBloom,
+      status: bigTransaction.wrappedEVMAccount.readableReceipt.status,
+      to: bigTransaction.wrappedEVMAccount.readableReceipt.to,
+      transactionHash: bigTransaction.txHash,
+      transactionIndex: '0x' + transactionIndexArg.toString(16),
+      type: bigTransaction.transactionType,
+    }
+  } else {
+    return null
   }
 }
 
