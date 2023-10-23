@@ -708,14 +708,10 @@ export const methods = {
       console.log('Running eth_getBlockTransactionCountByHash', args)
     }
     let blockHash = args[0]
-    //if (blockHash !== 'latest') blockHash = parseInt(blockHash, 16)
     if (config.queryFromValidator && config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
       if (blockHash === 'latest') {
-        const res = await requestWithRetry(
-          RequestMethod.Get,
-          `/eth_getLatestBlockHash?blockHash=${blockHash}`
-        )
+        const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockHash`)
         blockHash = res.data.latestBlockHash
       }
       const res = await axios.get(`${explorerUrl}/api/transaction?blockHash=${blockHash}`)
@@ -753,8 +749,12 @@ export const methods = {
     }
     let blockNumber = args[0]
     if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
-    if (config.queryFromExplorer) {
+    if (config.queryFromValidator && config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
+      if (blockNumber === 'latest') {
+        const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockNumber`)
+        blockNumber = res.data.latestBlockNumber
+      }
       const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
       if (verbose) {
         console.log('url', `${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
@@ -1345,10 +1345,7 @@ export const methods = {
     }
 
     if (newestBlock === 'latest') {
-      const res = await requestWithRetry(
-        RequestMethod.Get,
-        `/eth_getLatestBlockNumber?blockNumber=${newestBlock}`
-      )
+      const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockNumber`)
       newestBlock = res.data.latestBlockNumber
     }
 
@@ -1509,10 +1506,8 @@ export const methods = {
     if (config.queryFromValidator && config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
       if (blockHash === 'latest') {
-        const res = await requestWithRetry(
-          RequestMethod.Get,
-          `/eth_getLatestBlockHash?blockHash=${blockHash}`
-        )
+        const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockHash`)
+        console.log(`res is ${res}`)
         blockHash = res.data.latestBlockHash
       }
       const res = await axios.get(`${explorerUrl}/api/transaction?blockHash=${blockHash}`)
