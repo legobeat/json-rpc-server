@@ -102,7 +102,7 @@ function extractTransactionObject(bigTransaction: any, transactionIndexArg: numb
       to: bigTransaction.wrappedEVMAccount.readableReceipt.to,
       transactionIndex: '0x' + transactionIndexArg.toString(16),
       value: bigTransaction.wrappedEVMAccount.readableReceipt.value,
-      type: bigTransaction.transactionType,
+      type: bigTransaction.wrappedEVMAccount.readableReceipt.type,
       chainId: bigTransaction.wrappedEVMAccount.readableReceipt.chainId,
       v: bigTransaction.wrappedEVMAccount.readableReceipt.v,
       r: bigTransaction.wrappedEVMAccount.readableReceipt.r,
