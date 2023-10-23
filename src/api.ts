@@ -82,6 +82,10 @@ export type DetailedTxStatus = {
   nodeUrl?: string
 }
 
+function hexStrToInt(hexStr: string) {
+  return parseInt(hexStr.slice(2), 16)
+}
+
 let filtersMap: Map<string, Types.InternalFilter> = new Map()
 
 function extractTransactionObject(bigTransaction: any, transactionIndexArg: number) {
@@ -91,8 +95,11 @@ function extractTransactionObject(bigTransaction: any, transactionIndexArg: numb
       blockNumber: bigTransaction.wrappedEVMAccount.readableReceipt.blockNumber,
       from: bigTransaction.wrappedEVMAccount.readableReceipt.from,
       gas:
-        bigTransaction.wrappedEVMAccount.readableReceipt.gasUsed +
-        bigTransaction.wrappedEVMAccount.readableReceipt.gasRefund,
+        '0x' +
+        (
+          hexStrToInt(bigTransaction.wrappedEVMAccount.readableReceipt.gasUsed) +
+          hexStrToInt(bigTransaction.wrappedEVMAccount.readableReceipt.gasRefund)
+        ).toString(),
       gasPrice: bigTransaction.wrappedEVMAccount.readableReceipt.gasPrice,
       maxFeePerGas: undefined,
       maxPriorityFeePerGas: undefined,
@@ -1336,40 +1343,50 @@ export const methods = {
     let newestBlock = args[1]
     const rewardPercentiles = args[2]
 
-    let result = {
+    let result: {
+      oldestBlock: string
+      baseFeePerGas: any[]
+      gasUsedRatio: any[]
+      reward: number
+    }
+
+    result = {
       oldestBlock: '',
-      baseFeePerGas: 0,
-      gasUsedRatio: 0,
+      baseFeePerGas: [],
+      gasUsedRatio: [],
       reward: 0,
     }
 
-    if (newestBlock === 'latest') {
-      const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockNumber`)
-      newestBlock = res.data.latestBlockNumber
-    }
+    if (config.queryFromValidator && config.queryFromExplorer) {
+      const explorerUrl = config.explorerUrl
+      if (newestBlock === 'latest') {
+        const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockNumber`)
+        newestBlock = res.data.latestBlockNumber
+      }
+      for (let i = 0; i < blockCount; i++) {
+        let blockNumber = newestBlock - i
+        const resBlock = await requestWithRetry(
+          RequestMethod.Get,
+          `/eth_getBlockByNumber?blockNumber=${blockNumber}`
+        )
+        console.log(`block:`)
+        console.dir(resBlock.data.block, { depth: null })
+        result.gasUsedRatio.unshift(
+          hexStrToInt(resBlock.data.block.gasUsed) / hexStrToInt(resBlock.data.block.gasLimit)
+        )
 
-    // let gasPrices = []
-    for (let i = 0; i < blockCount; i++) {
-      let blockNumber = newestBlock - i
-
-      if (config.queryFromExplorer) {
-        /*
-        const explorerUrl = config.explorerUrl
         const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
-
-        for (const )
-        */
+        let gasPrices = []
+        for (const transaction of res.data.transactions) {
+          gasPrices.push(transaction.wrappedEVMAccount.readableReceipt.gasPrice)
+        }
+        result.baseFeePerGas.push(gasPrices)
 
         if (blockNumber === newestBlock - blockCount + 1) {
           result.oldestBlock = '0x' + blockNumber.toString(16)
         }
       }
     }
-
-    result.baseFeePerGas = 0
-    result.gasUsedRatio = 0
-    result.reward = 0
-
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
