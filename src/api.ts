@@ -86,6 +86,11 @@ function hexStrToInt(hexStr: string) {
   return parseInt(hexStr.slice(2), 16)
 }
 
+function isHex(str: string) {
+  const regexp = /^0x[0-9a-fA-F]+$/
+  return regexp.test(str)
+}
+
 let filtersMap: Map<string, Types.InternalFilter> = new Map()
 
 function extractTransactionObject(bigTransaction: any, transactionIndexArg?: number) {
@@ -102,7 +107,7 @@ function extractTransactionObject(bigTransaction: any, transactionIndexArg?: num
       maxFeePerGas: undefined,
       maxPriorityFeePerGas: undefined,
       hash: tx.txHash || tx.readableReceipt.transactionHash,
-      input: '',
+      input: tx.readableReceipt.data,
       nonce: tx.readableReceipt.nonce,
       to: tx.readableReceipt.to,
       transactionIndex: transactionIndexArg ? '0x' + transactionIndexArg.toString(16) : undefined,
@@ -1257,6 +1262,8 @@ export const methods = {
       console.log('Running getBlockByHash', args)
     }
     //getCurrentBlock handles errors, no try catch needed
+    // since there are no transactions included when we query from validator,
+    // the transaction_detail_flag is not used
     const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${args[0]}`)
 
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
@@ -1273,7 +1280,9 @@ export const methods = {
       console.log('Running getBlockByNumber', args)
     }
     let blockNumber = args[0]
-    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
+    // since there are no transactions included when we query from validator,
+    // the transaction_detail_flag is not used
+    if (blockNumber !== 'latest' && blockNumber !== 'earliest') blockNumber = parseInt(blockNumber, 16)
     const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByNumber?blockNumber=${blockNumber}`)
     const nodeUrl = res.data.nodeUrl
     const result = res.data.block
@@ -1297,7 +1306,8 @@ export const methods = {
       console.log('Running getBlockReceipts', args)
     }
     let blockNumber = args[0]
-    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
+    if (blockNumber !== 'latest' && blockNumber !== 'earliest') blockNumber = parseInt(blockNumber, 16)
+    if (blockNumber === 'earliest') blockNumber = 0
     if (config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
       const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
@@ -1305,14 +1315,12 @@ export const methods = {
         console.log('url', `${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
         console.log('res', JSON.stringify(res.data))
       }
-
       let index = 0
       let result = []
       for (let transaction of res.data.transactions) {
         result.push(extractTransactionReceiptObject(transaction, index))
         index++
       }
-
       const nodeUrl = config.explorerUrl
       if (verbose) console.log('BLOCK RECEIPTS DETAIL', result)
       callback(null, result)
@@ -1325,7 +1333,7 @@ export const methods = {
     } else {
       console.log('queryFromExplorer turned off. Could not process request')
       callback(null, [])
-      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
     }
   },
   eth_feeHistory: async function (args: any, callback: any) {
@@ -1338,56 +1346,68 @@ export const methods = {
     if (verbose) {
       console.log('Running eth_feeHistory', args)
     }
-    const blockCount = args[0]
+    let blockCount = args[0]
     let newestBlock = args[1]
-    const rewardPercentiles = args[2]
-
-    let result: {
-      oldestBlock: string
-      baseFeePerGas: any[]
-      gasUsedRatio: any[]
-      reward: number
-    }
-
-    result = {
-      oldestBlock: '',
-      baseFeePerGas: [],
-      gasUsedRatio: [],
-      reward: 0,
-    }
-
-    if (config.queryFromValidator && config.queryFromExplorer) {
-      const explorerUrl = config.explorerUrl
-      if (newestBlock === 'latest') {
-        const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockNumber`)
-        newestBlock = res.data.latestBlockNumber
+    // technically, the argument "reward" is required
+    // since we dont use it, we don't care if someone doesn't include it
+    if (
+      typeof newestBlock !== 'string' ||
+      (newestBlock !== 'earliest' && newestBlock !== 'latest' && !isHex(newestBlock))
+    ) {
+      const error = {
+        message: 'invalid input',
       }
-      for (let i = 0; i < blockCount; i++) {
-        let blockNumber = newestBlock - i
-        const resBlock = await requestWithRetry(
-          RequestMethod.Get,
-          `/eth_getBlockByNumber?blockNumber=${blockNumber}`
-        )
-        console.log(`block:`)
-        console.dir(resBlock.data.block, { depth: null })
-        result.gasUsedRatio.unshift(
-          hexStrToInt(resBlock.data.block.gasUsed) / hexStrToInt(resBlock.data.block.gasLimit)
-        )
-
-        const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
-        let gasPrices = []
-        for (const transaction of res.data.transactions) {
-          gasPrices.push(transaction.wrappedEVMAccount.readableReceipt.gasPrice)
+      callback(null, error)
+    } else {
+      if (blockCount > newestBlock) {
+        blockCount = newestBlock
+      }
+      let result: {
+        oldestBlock: string
+        baseFeePerGas: any[]
+        gasUsedRatio: any[]
+        reward: undefined
+      }
+      result = {
+        oldestBlock: '',
+        baseFeePerGas: [],
+        gasUsedRatio: [],
+        reward: undefined,
+      }
+      if (config.queryFromValidator && config.queryFromExplorer) {
+        const explorerUrl = config.explorerUrl
+        if (newestBlock === 'earliest') {
+          const res = await requestWithRetry(RequestMethod.Get, `/eth_getEarliestBlockNumber`)
+          newestBlock = res.data.earliestBlockNumber
         }
-        result.baseFeePerGas.push(gasPrices)
+        if (newestBlock === 'latest') {
+          const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockNumber`)
+          newestBlock = res.data.latestBlockNumber
+        }
+        for (let i = 0; i < blockCount; i++) {
+          let blockNumber = newestBlock - i
+          const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
+          let gasPrices = []
+          let gasUsed = 0
+          let gasLimit = 0
+          for (const transaction of res.data.transactions) {
+            console.log('here')
 
-        if (blockNumber === newestBlock - blockCount + 1) {
-          result.oldestBlock = '0x' + blockNumber.toString(16)
+            gasUsed += hexStrToInt(transaction.wrappedEVMAccount.readableReceipt.gasUsed)
+            gasLimit += hexStrToInt(transaction.wrappedEVMAccount.readableReceipt.gasLimit)
+            gasPrices.push(transaction.wrappedEVMAccount.readableReceipt.gasPrice)
+          }
+          result.gasUsedRatio.unshift(gasUsed === 0 && gasLimit === 0 ? 0 : gasUsed / gasLimit)
+          result.baseFeePerGas.unshift(gasPrices)
+
+          if (blockNumber === newestBlock - blockCount + 1) {
+            result.oldestBlock = '0x' + blockNumber.toString(16)
+          }
         }
       }
+      callback(null, result)
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     }
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
   eth_getTransactionByHash: async function (args: any, callback: any) {
     const api_name = 'eth_getTransactionByHash'
@@ -1515,7 +1535,8 @@ export const methods = {
     }
     let blockNumber = args[0]
     const index = parseInt(args[1], 16)
-    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
+    if (blockNumber !== 'latest' && blockNumber !== 'earliest') blockNumber = parseInt(blockNumber, 16)
+    if (blockNumber === 'earliest') blockNumber = 0
     if (config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
       const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
