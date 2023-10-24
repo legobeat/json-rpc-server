@@ -88,54 +88,53 @@ function hexStrToInt(hexStr: string) {
 
 let filtersMap: Map<string, Types.InternalFilter> = new Map()
 
-function extractTransactionObject(bigTransaction: any, transactionIndexArg: number) {
+function extractTransactionObject(bigTransaction: any, transactionIndexArg?: number) {
   if (bigTransaction) {
+    const tx = bigTransaction.wrappedEVMAccount || bigTransaction
     return {
-      blockHash: bigTransaction.wrappedEVMAccount.readableReceipt.blockHash,
-      blockNumber: bigTransaction.wrappedEVMAccount.readableReceipt.blockNumber,
-      from: bigTransaction.wrappedEVMAccount.readableReceipt.from,
+      blockHash: tx.readableReceipt.blockHash,
+      blockNumber: tx.readableReceipt.blockNumber,
+      from: tx.readableReceipt.from,
       gas:
         '0x' +
-        (
-          hexStrToInt(bigTransaction.wrappedEVMAccount.readableReceipt.gasUsed) +
-          hexStrToInt(bigTransaction.wrappedEVMAccount.readableReceipt.gasRefund)
-        ).toString(),
-      gasPrice: bigTransaction.wrappedEVMAccount.readableReceipt.gasPrice,
+        (hexStrToInt(tx.readableReceipt.gasUsed) + hexStrToInt(tx.readableReceipt.gasRefund)).toString(),
+      gasPrice: tx.readableReceipt.gasPrice,
       maxFeePerGas: undefined,
       maxPriorityFeePerGas: undefined,
-      hash: bigTransaction.txHash,
+      hash: tx.txHash || tx.readableReceipt.transactionHash,
       input: '',
-      nonce: bigTransaction.wrappedEVMAccount.readableReceipt.nonce,
-      to: bigTransaction.wrappedEVMAccount.readableReceipt.to,
-      transactionIndex: '0x' + transactionIndexArg.toString(16),
-      value: bigTransaction.wrappedEVMAccount.readableReceipt.value,
-      type: bigTransaction.wrappedEVMAccount.readableReceipt.type,
-      chainId: bigTransaction.wrappedEVMAccount.readableReceipt.chainId,
-      v: bigTransaction.wrappedEVMAccount.readableReceipt.v,
-      r: bigTransaction.wrappedEVMAccount.readableReceipt.r,
-      s: bigTransaction.wrappedEVMAccount.readableReceipt.s,
+      nonce: tx.readableReceipt.nonce,
+      to: tx.readableReceipt.to,
+      transactionIndex: transactionIndexArg ? '0x' + transactionIndexArg.toString(16) : undefined,
+      value: tx.readableReceipt.value,
+      type: tx.readableReceipt.type,
+      chainId: tx.readableReceipt.chainId,
+      v: tx.readableReceipt.v,
+      r: tx.readableReceipt.r,
+      s: tx.readableReceipt.s,
     }
   } else {
     return null
   }
 }
 
-function extractTransactionReceiptObject(bigTransaction: any, transactionIndexArg: number) {
+function extractTransactionReceiptObject(bigTransaction: any, transactionIndexArg?: number) {
   if (bigTransaction) {
+    const tx = bigTransaction.wrappedEVMAccount || bigTransaction
     return {
-      blockHash: bigTransaction.wrappedEVMAccount.readableReceipt.blockHash,
-      blockNumber: bigTransaction.wrappedEVMAccount.readableReceipt.blockNumber,
-      contractAddress: bigTransaction.wrappedEVMAccount.readableReceipt.contractAddress,
-      cumulativeGasUsed: bigTransaction.wrappedEVMAccount.readableReceipt.cumulativeGasUsed,
-      effectiveGasPrice: bigTransaction.wrappedEVMAccount.readableReceipt.gasPrice,
-      from: bigTransaction.wrappedEVMAccount.readableReceipt.from,
-      gasUsed: bigTransaction.wrappedEVMAccount.readableReceipt.gasUsed,
-      logs: bigTransaction.wrappedEVMAccount.readableReceipt.logs,
-      logsBloom: bigTransaction.wrappedEVMAccount.readableReceipt.logsBloom,
-      status: bigTransaction.wrappedEVMAccount.readableReceipt.status,
-      to: bigTransaction.wrappedEVMAccount.readableReceipt.to,
-      transactionHash: bigTransaction.txHash,
-      transactionIndex: '0x' + transactionIndexArg.toString(16),
+      blockHash: tx.readableReceipt.blockHash,
+      blockNumber: tx.readableReceipt.blockNumber,
+      contractAddress: tx.readableReceipt.contractAddress,
+      cumulativeGasUsed: tx.readableReceipt.cumulativeGasUsed,
+      effectiveGasPrice: tx.readableReceipt.gasPrice,
+      from: tx.readableReceipt.from,
+      gasUsed: tx.readableReceipt.gasUsed,
+      logs: tx.readableReceipt.logs,
+      logsBloom: tx.readableReceipt.logsBloom,
+      status: tx.readableReceipt.status,
+      to: tx.readableReceipt.to,
+      transactionHash: tx.txHash || tx.readableReceipt.transactionHash,
+      transactionIndex: transactionIndexArg ? '0x' + transactionIndexArg.toString(16) : undefined,
       type: bigTransaction.transactionType,
     }
   } else {
@@ -1403,23 +1402,7 @@ export const methods = {
     const txHash = args[0]
     let retry = 0
     let success = false
-    let result
-    const defaultResult: any = {
-      blockHash: '0x1d59ff54b1eb26b013ce3cb5fc9dab3705b415a67127a003c3e61eb445bb8df2',
-      blockNumber: '0x5daf3b', // 6139707
-      from: '0xa7d9ddbe1f17865597fbd27ec712455208b6b76d',
-      gas: '0xc350', // 50000
-      gasPrice: '0x4a817c800', // 20000000000
-      hash: '0x88df016429689c079f3b2f6ad39fa052532c56795b733da78a91ebe6a713944b',
-      input: '0x68656c6c6f21',
-      nonce: '0x15', // 21
-      to: '0xf02c1c8e6114b1dbe8937a39260b5b0a374432bb',
-      transactionIndex: '0x1', // 1
-      value: '0xf3dbb76162000', // 4290000000000000
-      v: '0x25', // 37
-      r: '0x1b5e176d927f8e9ab405058b2d2457392da3e20f328b16ddabcebc33eaac5fea',
-      s: '0x4ba69724e8f69de52f0125ad8b3c5c2cef33019bac3249e2c0a2192766d1721c',
-    }
+    let result = null
     let nodeUrl
     while (retry < 10 && !success) {
       try {
@@ -1427,84 +1410,55 @@ export const methods = {
         if (config.queryFromValidator) {
           res = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
           nodeUrl = res.data.nodeUrl
-          result = res.data.account ? res.data.account.readableReceipt : null
-          if (result && result.readableReceipt) {
-            result = result.readableReceipt
-          } else if (result && result.appData && result.appData.data) {
-            result = result.appData.data.readableReceipt
-          }
-          if (!result && res.data && res.data.error) {
-            if (verbose) console.log(`eth_getTransactionReceipt from valdator error: ${res.data.error} `)
+          result = res.data.account
+          if (res.data && res.data.error) {
+            if (verbose) console.log(`eth_getTransactionReceipt from validator error: ${res.data.error} `)
           }
         }
-        if (result == null) {
-          // set node url to null in this block, because querying from node fail
-          // and now trying to get it from other sources
-          nodeUrl = null
-          if (verbose) {
-            console.log('tx', txHash, result)
-            console.log('Awaiting tx data for txHash', txHash)
-          }
-          if (config.queryFromArchiver) {
-            console.log('querying eth_getTransactionByHash from archiver')
-
-            res = await axios.get(`${getArchiverUrl().url}/transaction?accountId=${txHash.substring(2)}`)
-            // console.log('res', res)
-            result = res.data.transactions ? res.data.transactions.data.readableReceipt : null
-          }
-          if (config.queryFromExplorer) {
-            if (verbose) console.log('querying eth_getTransactionByHash from explorer', txHash)
-            // const explorerUrl = `http://${config.explorerInfo.ip}:${config.explorerInfo.port}`
-            const explorerUrl = config.explorerUrl
-
-            res = await axios.get(`${explorerUrl}/api/transaction?txHash=${txHash}`)
-            if (verbose) {
-              console.log('url', `${explorerUrl}/api/transaction?txHash=${txHash}`)
-              console.log('res', JSON.stringify(res.data))
-            }
-            result = res.data.transactions
-              ? res.data.transactions[0]
-                ? res.data.transactions[0].wrappedEVMAccount.readableReceipt
-                : null
-              : null
-          }
-          if (result === null) {
-            await sleep(2000)
-            retry += 1
-            continue
-          }
+        // set node url to null in this block, because querying from node fail
+        // and now trying to get it from other sources
+        nodeUrl = null
+        if (!result && config.queryFromArchiver) {
+          if (verbose) console.log('querying eth_getTransactionByHash from archiver ', txHash)
+          res = await axios.get(`${getArchiverUrl().url}/transaction?accountId=${txHash.substring(2)}`)
+          result = res.data.transactions?.data
         }
+        if (!result && config.queryFromExplorer) {
+          if (verbose) console.log('querying eth_getTransactionByHash from explorer', txHash)
+          const explorerUrl = config.explorerUrl
+          res = await axios.get(`${explorerUrl}/api/transaction?txHash=${txHash}`)
+          if (verbose)
+            console.log(
+              'url',
+              `${explorerUrl}/api/transaction?txHash=${txHash}`,
+              'res',
+              JSON.stringify(res.data)
+            )
+          result = res.data.transactions ? res.data.transactions[0] : null
+        }
+        if (result === null) {
+          await sleep(200)
+          retry += 1
+          continue
+        }
+
         success = true
       } catch (e) {
         if (verbose) console.log('Error: eth_getTransactionByHash', e)
         retry += 1
-        await sleep(2000)
+        await sleep(200)
       }
     }
     if (!result) {
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
-      callback(errorBusy)
+      callback(null, null) // tx not found
       return
     }
-    if (result.value === '0') {
-      result.value = '0x0'
-    }
 
-    if (verbose) console.log('result.from', result.from)
-
-    defaultResult.hash = result.transactionHash
-    defaultResult.from = result.from
-    defaultResult.to = result.to
-    defaultResult.nonce = result.nonce.indexOf('0x') === -1 ? '0x' + result.nonce : result.nonce
-    defaultResult.contractAddress = result.contractAddress
-    defaultResult.data = result.data
-    defaultResult.blockHash = result.blockHash
-    defaultResult.blockNumber = result.blockNumber
-    defaultResult.value = result.value.indexOf('0x') === -1 ? '0x' + result.value : result.value
-    defaultResult.gas = result.gasUsed
-    if (verbose) console.log('Final Tx:', txHash, defaultResult)
+    result = extractTransactionObject(result)
+    if (verbose) console.log('Final Tx:', txHash, result)
     logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
-    callback(null, defaultResult)
+    callback(null, result)
   },
   eth_getTransactionByBlockHashAndIndex: async function (args: any, callback: any) {
     const api_name = 'eth_getTransactionByBlockHashAndIndex'
@@ -1595,10 +1549,7 @@ export const methods = {
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
     const now = Date.now()
-    if (verbose) {
-      console.log('Getting tx receipt', new Date(now), now)
-      console.log('Running getTransactionReceipt', args)
-    }
+    if (verbose) console.log('Getting tx receipt', new Date(now), now, 'args', args)
     let nodeUrl
     try {
       let res
@@ -1606,16 +1557,11 @@ export const methods = {
       const txHash = args[0]
       if (config.queryFromValidator) {
         res = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
-        nodeUrl = res.data.nodeUrl
-        result = res.data.account ? res.data.account.readableReceipt : null
-        if (result && result.readableReceipt) {
-          result = result.readableReceipt
-        } else if (result && result.appData && result.appData.data) {
-          result = result.appData.data.readableReceipt
-        }
         if (!result && res.data && res.data.error) {
-          if (verbose) console.log(`eth_getTransactionReceipt from valdator error: ${res.data.error} `)
+          if (verbose) console.log(`eth_getTransactionReceipt from validator error: ${res.data.error} `)
         }
+        nodeUrl = res.data?.nodeUrl
+        result = res.data?.account
       }
       if (!result && config.queryFromArchiver) {
         if (verbose) console.log('querying eth_getTransactionReceipt from archiver')
@@ -1626,29 +1572,17 @@ export const methods = {
           console.log('res', JSON.stringify(res.data))
         }
 
-        result = res.data.transactions ? res.data.transactions.data.readableReceipt : null
+        result = res.data.transactions ? res.data.transactions.data : null
       } else if (!result && config.queryFromExplorer) {
         console.log('querying eth_getTransactionReceipt from explorer', txHash)
-        // const explorerUrl = `http://${config.explorerInfo.ip}:${config.explorerInfo.port}`
         const explorerUrl = config.explorerUrl
-
         res = await axios.get(`${explorerUrl}/api/transaction?txHash=${txHash}`)
-        if (verbose) {
-          console.log('url', `${explorerUrl}/api/transaction?txHash=${txHash}`)
-          console.log('res', JSON.stringify(res.data))
-        }
-        result = res.data.transactions
-          ? res.data.transactions[0]
-            ? res.data.transactions[0].wrappedEVMAccount.readableReceipt
-            : null
-          : null
+        /* prettier-ignore */ if (verbose) console.log('url', `${explorerUrl}/api/transaction?txHash=${txHash}`,'res', JSON.stringify(res.data))
+
+        result = res.data.transactions ? res.data.transactions[0] : null
       }
-      // console.log('url', `${config.explorerInfo.ip}:${config.explorerInfo.port}/api/transaction?txHash=${txHash}`)
       if (result) {
-        if (!result.to || result.to == '') result.to = null
-        if (result.logs == null) result.logs = []
-        if (result.status == 0) result.status = '0x0'
-        if (result.status == 1) result.status = '0x1'
+        result = extractTransactionReceiptObject(result)
         if (verbose) console.log(`getTransactionReceipt result for ${txHash}`, result)
       }
       callback(null, result)
