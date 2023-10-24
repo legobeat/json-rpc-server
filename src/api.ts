@@ -1340,22 +1340,18 @@ export const methods = {
     }
     const blockCount = args[0]
     let newestBlock = args[1]
-    const rewardPercentiles = args[2]
-
     let result: {
       oldestBlock: string
       baseFeePerGas: any[]
       gasUsedRatio: any[]
       reward: number
     }
-
     result = {
       oldestBlock: '',
       baseFeePerGas: [],
       gasUsedRatio: [],
       reward: 0,
     }
-
     if (config.queryFromValidator && config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
       if (newestBlock === 'latest') {
@@ -1368,17 +1364,17 @@ export const methods = {
           RequestMethod.Get,
           `/eth_getBlockByNumber?blockNumber=${blockNumber}`
         )
-        if (resBlock.data.block) {
-          result.gasUsedRatio.unshift(
-            hexStrToInt(resBlock.data.block.gasUsed) / hexStrToInt(resBlock.data.block.gasLimit)
-          )
-        }
         const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
         let gasPrices = []
+        let gasUsed = 0
+        let gasLimit = 0
         for (const transaction of res.data.transactions) {
+          gasUsed += hexStrToInt(transaction.wrappedEVMAccount.readableReceipt.gasUsed)
+          gasLimit += hexStrToInt(transaction.wrappedEVMAccount.readableReceipt.gasLimit)
           gasPrices.push(transaction.wrappedEVMAccount.readableReceipt.gasPrice)
         }
-        result.baseFeePerGas.push(gasPrices)
+        result.gasUsedRatio.unshift(gasUsed === 0 && gasLimit === 0 ? 0 : gasUsed / gasLimit)
+        result.baseFeePerGas.unshift(gasPrices)
 
         if (blockNumber === newestBlock - blockCount + 1) {
           result.oldestBlock = '0x' + blockNumber.toString(16)
