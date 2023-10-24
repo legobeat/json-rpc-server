@@ -102,7 +102,7 @@ function extractTransactionObject(bigTransaction: any, transactionIndexArg?: num
       maxFeePerGas: undefined,
       maxPriorityFeePerGas: undefined,
       hash: tx.txHash || tx.readableReceipt.transactionHash,
-      input: '',
+      input: tx.readableReceipt.data,
       nonce: tx.readableReceipt.nonce,
       to: tx.readableReceipt.to,
       transactionIndex: transactionIndexArg ? '0x' + transactionIndexArg.toString(16) : undefined,
