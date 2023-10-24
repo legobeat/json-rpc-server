@@ -146,21 +146,46 @@ class Collector extends BaseExternal {
     return storageRecords
   }
 
-  async getBlock(key: string, inpType: 'hex_num' | 'hash'): Promise<any | null>{
+  async getBlock(block: string, inpType: 'hex_num' | 'hash' | 'tag', details = false): Promise<any | null>{
     if (!CONFIG.collectorSourcing.enabled) return null
     try{
-      let apiQuery;
+      let blockQuery;
       if(inpType === 'hex_num'){
         // int to hex
-        apiQuery = `${this.baseUrl}/api/blocks?numberHex=${key}&details=true`
+        blockQuery = `${this.baseUrl}/api/blocks?numberHex=${block}`
       }
       else{
-        apiQuery = `${this.baseUrl}/api/blocks?hash=${key}&details=true`
+        blockQuery = `${this.baseUrl}/api/blocks?hash=${block}`
       }
-      const response = await axios.get(apiQuery).then((response) => response.data)
+
+      const response = await axios.get(blockQuery).then((response) => response.data)
       if(!response.success) return null
-      delete response.success
-      return response
+
+      const { readableBlock, number } = response
+      const blockNumber = number 
+      const resultBlock =  readableBlock
+      const txQuery = `${this.baseUrl}/api/transaction?blockNumber=${blockNumber}`
+
+      resultBlock.transactions = await axios.get(txQuery).then((response) => {
+        if(!response.data.success) return []
+        return response.data.transactions.map((tx: any) => {
+          if(details === true){
+            const receipt = tx.wrappedEVMAccount.readableReceipt
+            receipt.status = receipt.status === 1 ? '0x01' : '0x00'
+            receipt.v = receipt.v ? receipt.v : '0x'
+            receipt.r = receipt.r ? receipt.r : '0x' 
+            receipt.s = receipt.s ? receipt.s : '0x'
+            return receipt
+          }
+            return tx.wrappedEVMAccount.readableReceipt.transactionHash
+        })
+      })
+      .catch((e) => {
+        console.error('collector.getBlock could not get txs for the block', e)
+        return []
+      })
+
+      return resultBlock
     }catch(e){
       console.error('An error occurred for Collector.getBlock:', e)
       return null

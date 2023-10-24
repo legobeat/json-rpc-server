@@ -1210,7 +1210,7 @@ export const methods = {
     }
     let result = null
     //getCurrentBlock handles errors, no try catch needed
-    result = await collectorAPI.getBlock(args[0], 'hash')
+    result = await collectorAPI.getBlock(args[0], 'hash', args[1])
     if(!result) {
       const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${args[0]}`)
       result = res.data.block
@@ -1232,9 +1232,9 @@ export const methods = {
     let result = null
     let nodeUrl = null
     let blockNumber = args[0]
-    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
+    if (blockNumber !== 'latest' || blockNumber !== 'earliest') blockNumber = parseInt(blockNumber, 16)
     
-    result = await collectorAPI.getBlock(blockNumber, 'hex_num')
+    result = await collectorAPI.getBlock(args[0], 'hex_num', args[1])
     if (!result) {
       const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByNumber?blockNumber=${blockNumber}`)
       result = res.data.block
