@@ -1344,13 +1344,13 @@ export const methods = {
       oldestBlock: string
       baseFeePerGas: any[]
       gasUsedRatio: any[]
-      reward: number
+      reward: undefined
     }
     result = {
       oldestBlock: '',
       baseFeePerGas: [],
       gasUsedRatio: [],
-      reward: 0,
+      reward: undefined,
     }
     if (config.queryFromValidator && config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
