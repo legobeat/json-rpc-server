@@ -1368,12 +1368,11 @@ export const methods = {
           RequestMethod.Get,
           `/eth_getBlockByNumber?blockNumber=${blockNumber}`
         )
-        console.log(`block:`)
-        console.dir(resBlock.data.block, { depth: null })
-        result.gasUsedRatio.unshift(
-          hexStrToInt(resBlock.data.block.gasUsed) / hexStrToInt(resBlock.data.block.gasLimit)
-        )
-
+        if (resBlock.data.block) {
+          result.gasUsedRatio.unshift(
+            hexStrToInt(resBlock.data.block.gasUsed) / hexStrToInt(resBlock.data.block.gasLimit)
+          )
+        }
         const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
         let gasPrices = []
         for (const transaction of res.data.transactions) {
