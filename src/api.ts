@@ -1379,7 +1379,16 @@ export const methods = {
     if (verbose) {
       console.log('Running getTransactionByBlockHashAndIndex', args)
     }
-    const result = 'test'
+    let result = null
+
+    try{
+      result = await collectorAPI.getBlock(args[0], 'hash', true) 
+      result = result?.transactions[Number(args[1])]
+
+    }catch(e){
+      callback(errorBusy)
+      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+    }
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
@@ -1390,10 +1399,19 @@ export const methods = {
       .update(api_name + Math.random() + Date.now())
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    let result = null
+    try{
+      result = await collectorAPI.getBlock(args[0], 'hex_num', true) 
+      result = result?.transactions[Number(args[1])]
+
+    }catch(e){
+      callback(errorBusy)
+      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+    }
     if (verbose) {
       console.log('Running getTransactionByBlockNumberAndIndex', args)
     }
-    const result = 'test'
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
