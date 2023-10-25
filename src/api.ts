@@ -1232,10 +1232,16 @@ export const methods = {
     let result = null
     let nodeUrl = null
     let blockNumber = args[0]
-    if (blockNumber !== 'latest' || blockNumber !== 'earliest') blockNumber = parseInt(blockNumber, 16)
+    if (args[0] == 'latest' || args[0] == 'earliest'){
+      blockNumber = blockNumber
+    } else {
+      blockNumber = parseInt(blockNumber)
+    }
+
     
     result = await collectorAPI.getBlock(args[0], 'hex_num', args[1])
     if (!result) {
+      console.log(blockNumber, args[0]);
       const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByNumber?blockNumber=${blockNumber}`)
       result = res.data.block
       nodeUrl = res.data.nodeUrl

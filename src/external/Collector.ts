@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios'
-import { buildLogAPIUrl, verbose } from '../api'
+import {verbose } from '../api'
 import { CONFIG } from '../config'
 import { LogQueryRequest } from '../types'
 import { BaseExternal } from './BaseExternal'
@@ -14,40 +14,49 @@ class Collector extends BaseExternal {
     })
   }
 
+    buildLogAPIUrl(request: any, baseDomain = CONFIG.explorerUrl) {
+      const apiUrl = `${baseDomain}/api/v2/logs`
+      const queryParams = []
+
+      // Check if each query parameter exists in the request object and add it to the queryParams array if it does
+      if (typeof request.address === 'string') {
+        queryParams.push(`address=${request.address}`)
+      }
+      if(Array.isArray(request.address)){
+        queryParams.push(`address=${JSON.stringify(request.address)}`)
+      }
+      if (request.topics && request.topics.length > 0) {
+        queryParams.push(`topics=${JSON.stringify(request.topics)}`)
+      }
+      if (request.fromBlock) {
+        queryParams.push(`fromBlock=${request.fromBlock}`)
+      }
+      if (request.toBlock) {
+        queryParams.push(`toBlock=${request.toBlock}`)
+      }
+      if (request.blockHash) {
+        queryParams.push(`blockHash=${request.blockHash}`)
+      }
+      // Combine the base URL with the query parameters
+      return `${apiUrl}${queryParams.length > 0 ? `?${queryParams.join('&')}` : ''}`
+  }
   async getLogsByFilter(request: LogQueryRequest): Promise<any[]> {
     if (!CONFIG.collectorSourcing.enabled) return []
 
-    /* prettier-ignore */ if (verbose) console.log(`Collector: getLogsByFilter call for request: ${JSON.stringify(request)}`)
+    try{
 
-    let filteredLogs: any[] = []
-    let currentPage = 1
+      const url = this.buildLogAPIUrl(request, this.baseUrl)
+      console.log('url for getLogsByFilter', url)
+      const res = await axios.get(url)
 
-    try {
-      if (request == null) return []
-      const baseUrl = buildLogAPIUrl(request, this.baseUrl)
-      const fullUrl = baseUrl + `&page=${currentPage}`
-      /* prettier-ignore */ if (CONFIG.verbose) console.log(`Collector: getLogsFromCollector fullUrl: ${fullUrl}`)
-      let res = await axios.get(fullUrl)
+      if (!res.data.success) return []
 
-      if (res.data && res.data.success && res.data.logs.length > 0) {
-        const logs = res.data.logs.map((item: any) => item.log)
-        filteredLogs = filteredLogs.concat(logs)
-        currentPage += 1
-        const totalPages = res.data.totalPages
-        while (currentPage <= totalPages) {
-          res = await axios.get(`${baseUrl}&page=${currentPage}`)
-          if (res.data && res.data.success) {
-            const logs = res.data.logs.map((item: any) => item.log)
-            filteredLogs = filteredLogs.concat(logs)
-          }
-          currentPage += 1
-        }
-      }
-    } catch (e) {
-      console.error(`Collector: Error getting logs by filter`, e)
+      const logs = res.data.logs.map((el: any) => el.log)
+      return logs
+    }catch(e){
+      console.error('An error occurred for Collector.getLogsByFilter:', e)
       return []
     }
-    return filteredLogs
   }
 
   async getTransactionByHash(txHash: string): Promise<readableReceipt | null> {
