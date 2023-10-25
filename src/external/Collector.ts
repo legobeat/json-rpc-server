@@ -112,7 +112,7 @@ class Collector extends BaseExternal {
     }
   }
 
-  async fetchLocalTxReceipt(txHash: string, hashReceipt = false) {
+  async fetchLocalTxReceipt(txHash: string, hashReceipt = false) : Promise<any> {
     if (!CONFIG.collectorSourcing.enabled) return null
 
     const apiQuery = `${this.baseUrl}/api/transaction?txHash=${txHash}`
@@ -121,7 +121,7 @@ class Collector extends BaseExternal {
         throw new Error('Failed to fetch transaction')
       } else return response
     })
-  
+    console.log("The response from the collector is", response.data)
     if (hashReceipt) {
       return response.data.transactions[0]
     }
@@ -132,7 +132,7 @@ class Collector extends BaseExternal {
     return receipt
   }
   
-  async fetchLocalStorage(txHash: string) {
+  async fetchLocalStorage(txHash: string) : Promise<{  key: string;  value: string; } [] | null> {
     if (!CONFIG.collectorSourcing.enabled) return null
 
     const receipt = await this.fetchLocalTxReceipt(txHash)
@@ -192,6 +192,50 @@ class Collector extends BaseExternal {
     }
   }
 
+  async fetchAccountFromCollector(key: string, timestamp: number) : Promise<{ accountId: any; data: any;} | undefined> {
+    const accountKey = `0x${key.slice(0, -24)}`
+    const apiQuery = `http://127.0.0.1:6001/api/transaction?address=${accountKey}&beforeTimestamp=${timestamp}`
+    let result = await axios.get(apiQuery).then((response) => response.data)
+    
+    const txCount = await axios.get(apiQuery).then((response) => response.data.totalTransactions)
+    if (txCount === 0) {
+      // Account does not exist!
+      console.log("Performed query on this and returned 0 for txCount", apiQuery)
+      return undefined
+    }
+  
+    let i = 1
+    const numberOfPages = Math.ceil(txCount / 10)
+    for (i; i <= numberOfPages; i++) {
+      // Fetch current page
+      const txList = await axios
+        .get(apiQuery.concat(`&page=${i}`))
+        .then((response) => response.data.transactions)
+        .then((txList) =>
+          txList.map((tx: { txId: string; timestamp: number }) => {
+            return { txId: tx.txId, timestamp: tx.timestamp }
+          })
+        )
+  
+      for (const tx of txList) {
+        const foundAccount = await axios
+          .get(`${this.baseUrl}/api/receipt?txId=${tx.txId}`)
+          .then((response) => response.data.receipts.accounts)
+          .then((accounts) => {
+            return accounts.find((account: { accountId: string }) => account.accountId === key)
+          })
+  
+        if (foundAccount) {
+          return {
+            accountId: foundAccount.accountId,
+            data: foundAccount.data,
+          }
+        }
+      }
+    }
+  
+    return undefined
+  }
 }
 
 type readableReceipt = {

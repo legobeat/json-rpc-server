@@ -13,6 +13,7 @@ import { Archiver } from '@shardus/archiver-discovery/dist/src/types'
 import execa from 'execa'
 import { spawn } from 'child_process'
 import { collectorAPI } from './external/Collector'
+import { serviceValidator } from './external/ServiceValidator'
 
 const crypto = require('@shardus/crypto-utils')
 
@@ -1177,7 +1178,14 @@ async function fetchLatestAccount(key: string, type: number) {
 async function fetchAccount(account: { type: number; key: string }, timestamp: number) {
   if (account.type === 0) {
     // EOA/CA
-    let result = await fetchAccountFromArchiver(account.key, timestamp)
+    let result
+    if(config.collectorSourcing) {
+      console.log("Getting data account.type === 0")
+      result = await collectorAPI.fetchAccountFromCollector(account.key, timestamp)
+    } else {
+      result = await fetchAccountFromArchiver(account.key, timestamp)
+    }
+    
     if (!result) {
       result = await fetchAccountFromExplorer(config.explorerUrl, account.key, timestamp)
     }
@@ -1188,14 +1196,21 @@ async function fetchAccount(account: { type: number; key: string }, timestamp: n
     return undefined
   } else if (account.type === 2) {
     // Contract Code
-    let result
-    const res = await requestWithRetry(
-      RequestMethod.Get,
-      `${getArchiverUrl().url}/account?accountId=${account.key}`,
-      {},
-      0,
-      true
-    )
+    let result, res
+    console.log("Getting data account.type === 2")
+    const accountKey = `0x${account.key.slice(0, -24)}`
+    res = await serviceValidator.getAccount(account.key)
+    
+    if(!res) { 
+      res = await requestWithRetry(
+        RequestMethod.Get,
+        `${getArchiverUrl().url}/account?accountId=${account.key}`,
+        {},
+        0,
+        true
+      )
+    }
+
     if (!res.data.accounts) {
       result = {
         accountId: account.key,
