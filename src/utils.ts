@@ -1175,42 +1175,42 @@ async function fetchLatestAccount(key: string, type: number) {
   }
 }
 
-async function fetchAccountFromCollector (account: { type: number; key: string }, timestamp: number) {
-    if(!config.collectorSourcing){
-      return undefined
-    } 
-    if (account.type === 0) {
-      // EOA/CA
-      console.log("Getting data account.type === 0")
-      return await collectorAPI.fetchAccount(account.key, timestamp)
-    } else if (account.type === 1) {
-      // Contract Storage
-      // throw new Error('Replay engine should never get here')
-      return undefined
-    } else if (account.type === 2) {
-      // Contract Code
-      let result, res
-      if(verbose) {
-        console.log("Getting data account.type === 2")
-      }
-      res = await serviceValidator.getAccount(account.key)
-      if (!res.data.accounts) {
-        result = {
-          accountId: account.key,
-          data: {
-            accountType: 2,
-            ethAddress: '',
-            hash: '',
-            timestamp: 0,
-          },
-        }
-      } else {
-        result = { accountId: account.key, data: res.data.accounts.data }
-      }
-      return result
-    } else {
-      return undefined
+async function fetchAccountFromCollector(account: { type: number; key: string }, timestamp: number) {
+  if (!config.collectorSourcing) {
+    return undefined
+  }
+  if (account.type === 0) {
+    // EOA/CA
+    console.log('Getting data account.type === 0')
+    return await collectorAPI.fetchAccount(account.key, timestamp)
+  } else if (account.type === 1) {
+    // Contract Storage
+    // throw new Error('Replay engine should never get here')
+    return undefined
+  } else if (account.type === 2) {
+    // Contract Code
+    let result, res
+    if (verbose) {
+      console.log('Getting data account.type === 2')
     }
+    res = await serviceValidator.getAccount(account.key)
+    if (!res.data.accounts) {
+      result = {
+        accountId: account.key,
+        data: {
+          accountType: 2,
+          ethAddress: '',
+          hash: '',
+          timestamp: 0,
+        },
+      }
+    } else {
+      result = { accountId: account.key, data: res.data.accounts.data }
+    }
+    return result
+  } else {
+    return undefined
+  }
 }
 
 async function fetchAccount(account: { type: number; key: string }, timestamp: number) {
@@ -1254,7 +1254,6 @@ async function fetchAccount(account: { type: number; key: string }, timestamp: n
     return undefined
   }
 }
-
 
 export async function replayGas(tx: { from: string; gas: string } & TxData) {
   const gasLimit = tx.gas ? tx.gas : '0x1C9C380'
@@ -1374,10 +1373,10 @@ export async function replayTransaction(txHash: string, flag: string) {
   if (fs.existsSync(path.join(transactionsFolder, txHash + '.json'))) {
     receipt = JSON.parse(fs.readFileSync(path.join(transactionsFolder, txHash + '.json'), 'utf8'))
   } else {
-    receipt = await collectorAPI.fetchLocalTxReceipt(txHash) 
-    if(!receipt){
+    receipt = await collectorAPI.fetchLocalTxReceipt(txHash)
+    if (!receipt) {
       receipt = await fetchTxReceipt(config.explorerUrl, txHash)
-    } 
+    }
     fs.writeFileSync(path.join(transactionsFolder, txHash + '.json'), JSON.stringify(receipt, undefined, 2))
   }
 
@@ -1419,9 +1418,9 @@ export async function replayTransaction(txHash: string, flag: string) {
         { key: missingData[0].shardusKey, type: missingData[0].type },
         receipt.timestamp
       )
-    } 
-    
-    if(!downloadedAccount) {
+    }
+
+    if (!downloadedAccount) {
       throw new Error('Account not found')
     }
 
