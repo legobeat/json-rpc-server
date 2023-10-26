@@ -1175,17 +1175,48 @@ async function fetchLatestAccount(key: string, type: number) {
   }
 }
 
+async function fetchAccountFromCollector (account: { type: number; key: string }, timestamp: number) {
+    if(!config.collectorSourcing){
+      return undefined
+    } 
+    if (account.type === 0) {
+      // EOA/CA
+      console.log("Getting data account.type === 0")
+      return await collectorAPI.fetchAccount(account.key, timestamp)
+    } else if (account.type === 1) {
+      // Contract Storage
+      // throw new Error('Replay engine should never get here')
+      return undefined
+    } else if (account.type === 2) {
+      // Contract Code
+      let result, res
+      if(verbose) {
+        console.log("Getting data account.type === 2")
+      }
+      res = await serviceValidator.getAccount(account.key)
+      if (!res.data.accounts) {
+        result = {
+          accountId: account.key,
+          data: {
+            accountType: 2,
+            ethAddress: '',
+            hash: '',
+            timestamp: 0,
+          },
+        }
+      } else {
+        result = { accountId: account.key, data: res.data.accounts.data }
+      }
+      return result
+    } else {
+      return undefined
+    }
+}
+
 async function fetchAccount(account: { type: number; key: string }, timestamp: number) {
   if (account.type === 0) {
     // EOA/CA
-    let result
-    if(config.collectorSourcing) {
-      console.log("Getting data account.type === 0")
-      result = await collectorAPI.fetchAccountFromCollector(account.key, timestamp)
-    } else {
-      result = await fetchAccountFromArchiver(account.key, timestamp)
-    }
-    
+    let result = await fetchAccountFromArchiver(account.key, timestamp)
     if (!result) {
       result = await fetchAccountFromExplorer(config.explorerUrl, account.key, timestamp)
     }
@@ -1196,21 +1227,14 @@ async function fetchAccount(account: { type: number; key: string }, timestamp: n
     return undefined
   } else if (account.type === 2) {
     // Contract Code
-    let result, res
-    console.log("Getting data account.type === 2")
-    const accountKey = `0x${account.key.slice(0, -24)}`
-    res = await serviceValidator.getAccount(account.key)
-    
-    if(!res) { 
-      res = await requestWithRetry(
-        RequestMethod.Get,
-        `${getArchiverUrl().url}/account?accountId=${account.key}`,
-        {},
-        0,
-        true
-      )
-    }
-
+    let result
+    const res = await requestWithRetry(
+      RequestMethod.Get,
+      `${getArchiverUrl().url}/account?accountId=${account.key}`,
+      {},
+      0,
+      true
+    )
     if (!res.data.accounts) {
       result = {
         accountId: account.key,
@@ -1230,6 +1254,7 @@ async function fetchAccount(account: { type: number; key: string }, timestamp: n
     return undefined
   }
 }
+
 
 export async function replayGas(tx: { from: string; gas: string } & TxData) {
   const gasLimit = tx.gas ? tx.gas : '0x1C9C380'
@@ -1383,12 +1408,20 @@ export async function replayTransaction(txHash: string, flag: string) {
       })
 
     // Download missing data
-    const downloadedAccount = await fetchAccount(
+    let downloadedAccount = await fetchAccountFromCollector(
       { key: missingData[0].shardusKey, type: missingData[0].type },
       receipt.timestamp
     )
 
     if (!downloadedAccount) {
+      // this fetches data from the archiver or the explorer in case the collector fails
+      downloadedAccount = await fetchAccount(
+        { key: missingData[0].shardusKey, type: missingData[0].type },
+        receipt.timestamp
+      )
+    } 
+    
+    if(!downloadedAccount) {
       throw new Error('Account not found')
     }
 

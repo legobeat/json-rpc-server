@@ -208,7 +208,7 @@ class Collector extends BaseExternal {
     }
   }
 
-  async fetchAccountFromCollector(key: string, timestamp: number) : Promise<{ accountId: any; data: any;} | undefined> {
+  async fetchAccount(key: string, timestamp: number) : Promise<{ accountId: any; data: any;} | undefined> {
     const accountKey = `0x${key.slice(0, -24)}`
     const apiQuery = `http://127.0.0.1:6001/api/transaction?address=${accountKey}&beforeTimestamp=${timestamp}`
     let result = await axios.get(apiQuery).then((response) => response.data)
