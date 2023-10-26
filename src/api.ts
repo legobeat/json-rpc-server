@@ -1262,6 +1262,8 @@ export const methods = {
       console.log('Running getBlockByHash', args)
     }
     //getCurrentBlock handles errors, no try catch needed
+    // since there are no transactions included when we query from validator,
+    // the transaction_detail_flag is not used
     const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${args[0]}`)
 
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
@@ -1278,7 +1280,9 @@ export const methods = {
       console.log('Running getBlockByNumber', args)
     }
     let blockNumber = args[0]
-    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
+    // since there are no transactions included when we query from validator,
+    // the transaction_detail_flag is not used
+    if (blockNumber !== 'latest' && blockNumber !== 'earliest') blockNumber = parseInt(blockNumber, 16)
     const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByNumber?blockNumber=${blockNumber}`)
     const nodeUrl = res.data.nodeUrl
     const result = res.data.block
@@ -1302,7 +1306,8 @@ export const methods = {
       console.log('Running getBlockReceipts', args)
     }
     let blockNumber = args[0]
-    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
+    if (blockNumber !== 'latest' && blockNumber !== 'earliest') blockNumber = parseInt(blockNumber, 16)
+    if (blockNumber === 'earliest') blockNumber = 0
     if (config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
       const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
@@ -1310,14 +1315,12 @@ export const methods = {
         console.log('url', `${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
         console.log('res', JSON.stringify(res.data))
       }
-
       let index = 0
       let result = []
       for (let transaction of res.data.transactions) {
         result.push(extractTransactionReceiptObject(transaction, index))
         index++
       }
-
       const nodeUrl = config.explorerUrl
       if (verbose) console.log('BLOCK RECEIPTS DETAIL', result)
       callback(null, result)
@@ -1330,7 +1333,7 @@ export const methods = {
     } else {
       console.log('queryFromExplorer turned off. Could not process request')
       callback(null, [])
-      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
     }
   },
   eth_feeHistory: async function (args: any, callback: any) {
@@ -1374,6 +1377,8 @@ export const methods = {
       if (config.queryFromValidator && config.queryFromExplorer) {
         const explorerUrl = config.explorerUrl
         if (newestBlock === 'earliest') {
+          const res = await requestWithRetry(RequestMethod.Get, `/eth_getEarliestBlockNumber`)
+          newestBlock = res.data.earliestBlockNumber
         }
         if (newestBlock === 'latest') {
           const res = await requestWithRetry(RequestMethod.Get, `/eth_getLatestBlockNumber`)
@@ -1530,7 +1535,8 @@ export const methods = {
     }
     let blockNumber = args[0]
     const index = parseInt(args[1], 16)
-    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
+    if (blockNumber !== 'latest' && blockNumber !== 'earliest') blockNumber = parseInt(blockNumber, 16)
+    if (blockNumber === 'earliest') blockNumber = 0
     if (config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
       const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
