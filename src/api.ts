@@ -1286,6 +1286,9 @@ export const methods = {
       s: '0x4ba69724e8f69de52f0125ad8b3c5c2cef33019bac3249e2c0a2192766d1721c',
     }
     result = await collectorAPI.getTransactionByHash(txHash)
+    if(verbose){
+      console.log("The result from the collector is", result)
+    }
     if (result) {
       success = true
       retry = 100
@@ -1438,7 +1441,10 @@ export const methods = {
       let res
       let result
       const txHash = args[0]
-      result = await collectorAPI.getTransactionByHash(txHash)
+      result = await collectorAPI.getTransactionReceipt(txHash)
+      if(verbose){
+        console.log("The result from the collector is", result)
+      }
 
       if (config.queryFromValidator && !result) {
         res = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
@@ -1464,7 +1470,10 @@ export const methods = {
 
         result = res.data.transactions ? res.data.transactions.data.readableReceipt : null
       } else if (!result && config.queryFromExplorer) {
-        console.log('querying eth_getTransactionReceipt from explorer', txHash)
+        if(verbose) {
+          console.log('querying eth_getTransactionReceipt from explorer', txHash)
+        }
+        
         // const explorerUrl = `http://${config.explorerInfo.ip}:${config.explorerInfo.port}`
         const explorerUrl = config.explorerUrl
 
@@ -1699,7 +1708,9 @@ export const methods = {
         topics: logFilter.topics,
         fromBlock: String(logFilter.lastQueriedBlock + 1),
       }
-      console.log('filter changes request', request)
+      if(verbose) {
+        console.log('filter changes request', request)
+      }
       // try sourcing from collector api server
       updates = await collectorAPI.getLogsByFilter(request)
       if (updates.length === 0) {
@@ -1935,7 +1946,9 @@ export const methods = {
       fromBlock: blockNumber,
     }
     const logs = await getLogsFromExplorer(request)
-    console.log('THE LOGS ARE', logs)
+    if(verbose) {
+      console.log('THE LOGS ARE', logs)
+    }
     callback(null, { storage: {} })
   },
   debug_storageRangeAt2: async function (args: any, callback: any) {
@@ -2158,7 +2171,7 @@ export const methods = {
       .update(api_name + Math.random() + Date.now())
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
+    
     console.log('Running eth_getAccessList', args)
 
     const callObj = args[0]

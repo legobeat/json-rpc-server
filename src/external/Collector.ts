@@ -46,7 +46,10 @@ class Collector extends BaseExternal {
     try{
 
       const url = this.buildLogAPIUrl(request, this.baseUrl)
-      console.log('url for getLogsByFilter', url)
+      if (verbose){
+        console.log('url for getLogsByFilter', url)
+      }
+      
       const res = await axios.get(url)
 
       if (!res.data.success) return []
@@ -61,6 +64,8 @@ class Collector extends BaseExternal {
 
   async getTransactionByHash(txHash: string): Promise<readableReceipt | null> {
     if (!CONFIG.collectorSourcing.enabled) return null
+
+    console.log("Calling from the collector transaction to hash")
 
     /* prettier-ignore */ if (verbose) console.log(`Collector: getTransactionByHash call for txHash: ${txHash}`)
     const requestConfig = {
@@ -90,7 +95,7 @@ class Collector extends BaseExternal {
     }
   }
 
-  async getTransactionReciept(txHash: string): Promise<completeReadableReciept | null> {
+  async getTransactionReceipt(txHash: string): Promise<completeReadableReciept | null> {
     if (!CONFIG.collectorSourcing.enabled) return null
 
     try {
@@ -98,8 +103,8 @@ class Collector extends BaseExternal {
       let res = await axios.get(fullUrl);
       
       if (verbose) {
-        console.log('url for getTransactionReciept', `${this.baseUrl}/api/transaction?txHash=${txHash}`);
-        console.log('res getTransactionReciept', JSON.stringify(res.data));
+        console.log('url for getTransactionReceipt', `${this.baseUrl}/api/transaction?txHash=${txHash}`);
+        console.log('res getTransactionReceipt', JSON.stringify(res.data));
       }
 
       if(!res.data.success) return null
@@ -111,12 +116,12 @@ class Collector extends BaseExternal {
         : null;
 
       if (verbose) { 
-        console.log(`local_receipt sourced for getTransactionReciept: ${result}`);
+        console.log(`local_receipt sourced for getTransactionReceipt: ${result}`);
       }
       
       return result;
     } catch (error) {
-      console.error('An error occurred for getTransactionReciept:', error);
+      console.error('An error occurred for getTransactionReceipt:', error);
       return null;
     }
   }
@@ -130,7 +135,9 @@ class Collector extends BaseExternal {
         throw new Error('Failed to fetch transaction')
       } else return response
     })
+    if (verbose) {
     console.log("The response from the collector is", response.data)
+    }
     if (hashReceipt) {
       return response.data.transactions[0]
     }
