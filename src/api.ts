@@ -1208,14 +1208,14 @@ export const methods = {
     if (verbose) {
       console.log('Running getBlockByHash', args)
     }
-    let result = null
+    let result: any = null
     //getCurrentBlock handles errors, no try catch needed
     result = await collectorAPI.getBlock(args[0], 'hash', args[1])
-    if(!result) {
+    if (!result) {
       const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${args[0]}`)
       result = res.data.block
     }
-    
+
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
@@ -1229,31 +1229,28 @@ export const methods = {
     if (verbose) {
       console.log('Running getBlockByNumber', args)
     }
-    let result = null
+    let result: any = null
     let nodeUrl = null
     let blockNumber = args[0]
-    if (args[0] == 'latest' || args[0] == 'earliest'){
+    if (args[0] == 'latest' || args[0] == 'earliest') {
       blockNumber = blockNumber
     } else {
       blockNumber = parseInt(blockNumber)
     }
 
-    
     result = await collectorAPI.getBlock(args[0], 'hex_num', args[1])
     if (!result) {
-      console.log(blockNumber, args[0]);
-      const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByNumber?blockNumber=${blockNumber}`)
+      console.log(blockNumber, args[0])
+      const res = await requestWithRetry(
+        RequestMethod.Get,
+        `/eth_getBlockByNumber?blockNumber=${blockNumber}`
+      )
       result = res.data.block
       nodeUrl = res.data.nodeUrl
     }
     if (verbose) console.log('BLOCK DETAIL', result)
     callback(null, result)
-    logEventEmitter.emit(
-      'fn_end',
-      ticket,
-      { nodeUrl, success: result ? true : false },
-      performance.now()
-    )
+    logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: result ? true : false }, performance.now())
   },
   eth_getTransactionByHash: async function (args: any, callback: any) {
     const api_name = 'eth_getTransactionByHash'
@@ -1286,11 +1283,8 @@ export const methods = {
       s: '0x4ba69724e8f69de52f0125ad8b3c5c2cef33019bac3249e2c0a2192766d1721c',
     }
     result = await collectorAPI.getTransactionByHash(txHash)
-    if(verbose){
-      console.log("The result from the collector is", result)
-    }
     if (result) {
-      // result found, skipping querying from archiver, validator and explorer. 
+      // result found, skipping querying from archiver, validator and explorer.
       success = true
       retry = 100
     }
@@ -1389,13 +1383,12 @@ export const methods = {
     if (verbose) {
       console.log('Running getTransactionByBlockHashAndIndex', args)
     }
-    let result = null
+    let result: any = null
 
-    try{
-      result = await collectorAPI.getBlock(args[0], 'hash', true) 
+    try {
+      result = await collectorAPI.getBlock(args[0], 'hash', true)
       result = result?.transactions[Number(args[1])]
-
-    }catch(e){
+    } catch (e) {
       callback(errorBusy)
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
     }
@@ -1410,12 +1403,11 @@ export const methods = {
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
 
-    let result = null
-    try{
-      result = await collectorAPI.getBlock(args[0], 'hex_num', true) 
+    let result: any = null
+    try {
+      result = await collectorAPI.getBlock(args[0], 'hex_num', true)
       result = result?.transactions[Number(args[1])]
-
-    }catch(e){
+    } catch (e) {
       callback(errorBusy)
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
     }
@@ -1443,9 +1435,6 @@ export const methods = {
       let result
       const txHash = args[0]
       result = await collectorAPI.getTransactionReceipt(txHash)
-      if(verbose){
-        console.log("The result from the collector is", result)
-      }
 
       if (config.queryFromValidator && !result) {
         res = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
@@ -1471,10 +1460,10 @@ export const methods = {
 
         result = res.data.transactions ? res.data.transactions.data.readableReceipt : null
       } else if (!result && config.queryFromExplorer) {
-        if(verbose) {
+        if (verbose) {
           console.log('querying eth_getTransactionReceipt from explorer', txHash)
         }
-        
+
         // const explorerUrl = `http://${config.explorerInfo.ip}:${config.explorerInfo.port}`
         const explorerUrl = config.explorerUrl
 
@@ -1701,7 +1690,7 @@ export const methods = {
     let filterId = args[0]
 
     const internalFilter: Types.InternalFilter | undefined = filtersMap.get(filterId.toString())
-    let updates = []
+    let updates: any[] = []
     if (internalFilter && internalFilter.type === Types.FilterTypes.log) {
       let logFilter = internalFilter.filter as Types.LogFilter
       let request: Types.LogQueryRequest = {
@@ -1709,14 +1698,16 @@ export const methods = {
         topics: logFilter.topics,
         fromBlock: String(logFilter.lastQueriedBlock + 1),
       }
-      if(verbose) {
+      if (verbose) {
         console.log('filter changes request', request)
       }
       // try sourcing from collector api server
-      updates = await collectorAPI.getLogsByFilter(request)
-      if (updates.length === 0) {
+      const updatesFromCollector = await collectorAPI.getLogsByFilter(request)
+      if (!updatesFromCollector) {
         // fallback to explorer
         updates = await getLogsFromExplorer(request)
+      } else {
+        updates = updatesFromCollector
       }
       internalFilter.updates = []
       let currentBlock = await getCurrentBlock()
@@ -1756,7 +1747,7 @@ export const methods = {
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
 
     let filterId = args[0]
-    let logs = []
+    let logs: any[] = []
 
     const internalFilter: Types.InternalFilter | undefined = filtersMap.get(filterId.toString())
     if (internalFilter && internalFilter.type === Types.FilterTypes.log) {
@@ -1770,9 +1761,9 @@ export const methods = {
         request.fromBlock = String(logFilter.fromBlock)
       }
       if (CONFIG.collectorSourcing.enabled) {
-        logs = await collectorAPI.getLogsByFilter(request)
-        if (logs.length > 0) {
-          callback(null, logs)
+        const logsFromCollector = await collectorAPI.getLogsByFilter(request)
+        if (logsFromCollector) {
+          callback(null, logsFromCollector)
           logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
           return
         }
@@ -1798,7 +1789,7 @@ export const methods = {
       console.log('Running getLogs', args)
     }
     let request = args[0]
-    let logs = []
+    let logs: any[] = []
     if (request.fromBlock === 'earliest') {
       request.fromBlock = '0'
     }
@@ -1843,9 +1834,9 @@ export const methods = {
       }
     }
     if (CONFIG.collectorSourcing.enabled) {
-      logs = await collectorAPI.getLogsByFilter(request)
-      if (logs.length > 0) {
-        callback(null, logs)
+      const logsFromCollector = await collectorAPI.getLogsByFilter(request)
+      if (logsFromCollector) {
+        callback(null, logsFromCollector)
         logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
         return
       }
@@ -1947,7 +1938,7 @@ export const methods = {
       fromBlock: blockNumber,
     }
     const logs = await getLogsFromExplorer(request)
-    if(verbose) {
+    if (verbose) {
       console.log('THE LOGS ARE', logs)
     }
     callback(null, { storage: {} })
@@ -1965,10 +1956,10 @@ export const methods = {
 
     try {
       const txHash = args[0]
-      let states = await collectorAPI.getStorage(txHash) 
-      if(!states) {
+      let states = await collectorAPI.getStorage(txHash)
+      if (!states) {
         states = await fetchStorage(txHash)
-      } 
+      }
       const storageObject: { [key: string]: any } = {}
       states.forEach((state) => {
         const keyBuf = parseAndValidateStringInput(state.key)
@@ -2172,7 +2163,7 @@ export const methods = {
       .update(api_name + Math.random() + Date.now())
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    
+
     console.log('Running eth_getAccessList', args)
 
     const callObj = args[0]

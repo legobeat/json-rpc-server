@@ -1,11 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios, { AxiosRequestConfig } from 'axios'
+import { bufferToHex } from 'ethereumjs-util'
 import { verbose } from '../api'
 import { CONFIG } from '../config'
 import { LogQueryRequest } from '../types'
 import { BaseExternal, axiosWithRetry } from './BaseExternal'
-import { bufferToHex } from 'ethereumjs-util'
-import { json } from 'body-parser'
 
 class Collector extends BaseExternal {
   constructor(baseURL: string) {
@@ -14,60 +13,30 @@ class Collector extends BaseExternal {
     })
   }
 
-  buildLogAPIUrl(request: any, baseDomain = CONFIG.explorerUrl): string {
-    const apiUrl = `${baseDomain}/api/v2/logs`
-    const queryParams: string[] = []
+  async getLogsByFilter(request: LogQueryRequest): Promise<any[] | null> {
+    if (!CONFIG.collectorSourcing.enabled) return null
 
-    // Check if each query parameter exists in the request object and add it to the queryParams array if it does
-    if (typeof request.address === 'string') {
-      queryParams.push(`address=${request.address}`)
-    }
-    if (Array.isArray(request.address)) {
-      queryParams.push(`address=${JSON.stringify(request.address)}`)
-    }
-    if (request.topics && request.topics.length > 0) {
-      queryParams.push(`topics=${JSON.stringify(request.topics)}`)
-    }
-    if (request.fromBlock) {
-      queryParams.push(`fromBlock=${request.fromBlock}`)
-    }
-    if (request.toBlock) {
-      queryParams.push(`toBlock=${request.toBlock}`)
-    }
-    if (request.blockHash) {
-      queryParams.push(`blockHash=${request.blockHash}`)
-    }
-    // Combine the base URL with the query parameters
-    return `${apiUrl}${queryParams.length > 0 ? `?${queryParams.join('&')}` : ''}`
-  }
-
-  async getLogsByFilter(request: LogQueryRequest): Promise<any[]> {
-    if (!CONFIG.collectorSourcing.enabled) return []
-
+    /* prettier-ignore */ console.log(`Collector: getLogsByFilter call for request: ${JSON.stringify(request)}`)
     try {
       const url = this.buildLogAPIUrl(request, this.baseUrl)
-      if (verbose) {
-        console.log('url for getLogsByFilter', url)
-      }
+      /* prettier-ignore */ if (verbose) console.log(`Collector: getLogsByFilter built log API URL: ${url}`)
 
       const res = await axios.get(url)
 
-      if (!res.data.success) return []
+      if (!res.data.success) return null
 
       const logs = res.data.logs.map((el: any) => el.log)
       return logs
     } catch (e) {
       console.error('An error occurred for Collector.getLogsByFilter:', e)
-      return []
+      return null
     }
   }
 
   async getTransactionByHash(txHash: string): Promise<readableReceipt | null> {
     if (!CONFIG.collectorSourcing.enabled) return null
 
-    console.log('Calling from the collector transaction to hash')
-
-    /* prettier-ignore */ if (verbose) console.log(`Collector: getTransactionByHash call for txHash: ${txHash}`)
+    /* prettier-ignore */ console.log(`Collector: getTransactionByHash call for txHash: ${txHash}`)
     const requestConfig: AxiosRequestConfig = {
       method: 'get',
       url: `${this.baseUrl}/api/transaction?txHash=${txHash}`,
@@ -75,8 +44,9 @@ class Collector extends BaseExternal {
     }
 
     try {
-      /* prettier-ignore */ if (verbose) console.log(`Collector: getTransactionByHash fullUrl: ${JSON.stringify(requestConfig)}`)
+      /* prettier-ignore */ if (verbose) console.log(`Collector: getTransactionByHash requestConfig: ${JSON.stringify(requestConfig)}`)
       const res = await axiosWithRetry<{ success: boolean; transactions: any }>(requestConfig)
+      /* prettier-ignore */ if (verbose) console.log(`Collector: getTransactionByHash res: ${JSON.stringify(res.data)}`)
       if (!res.data.success) return null
 
       const result = res.data.transactions
@@ -96,15 +66,15 @@ class Collector extends BaseExternal {
   async getTransactionReceipt(txHash: string): Promise<completeReadableReceipt | null> {
     if (!CONFIG.collectorSourcing.enabled) return null
 
+    /* prettier-ignore */ console.log(`Collector: getTransactionReceipt call for txHash: ${txHash}`)
+    const requestConfig: AxiosRequestConfig = {
+      method: 'get',
+      url: `${this.baseUrl}/api/transaction?txHash=${txHash}`,
+      headers: this.defaultHeaders,
+    }
     try {
-      const fullUrl = `${this.baseUrl}/api/transaction?txHash=${txHash}`
-      const res = await axios.get(fullUrl)
-
-      if (verbose) {
-        console.log('url for getTransactionReceipt', `${this.baseUrl}/api/transaction?txHash=${txHash}`)
-        console.log('res getTransactionReceipt', JSON.stringify(res.data))
-      }
-
+      const res = await axiosWithRetry<{ success: boolean; transactions: any }>(requestConfig)
+      /* prettier-ignore */ if (verbose) console.log(`Collector: getTransactionReceipt res: ${JSON.stringify(res.data)}`)
       if (!res.data.success) return null
 
       const result = res.data.transactions
@@ -113,19 +83,18 @@ class Collector extends BaseExternal {
           : null
         : null
 
-      if (verbose) {
-        console.log(`local_receipt sourced for getTransactionReceipt: ${result}`)
-      }
-
+      /* prettier-ignore */ if (verbose) console.log(`Collector: getTransactionReceipt result: ${JSON.stringify(result)}`)
       return result
     } catch (error) {
-      console.error('An error occurred for getTransactionReceipt:', error)
+      console.error('Collector: Error getting transaction receipt', error)
       return null
     }
   }
 
-  async getTxReceiptDetails(txHash: string, hashReceipt = false): Promise<any> {
+  async getTxReceiptDetails(txHash: string): Promise<any | null> {
     if (!CONFIG.collectorSourcing.enabled) return null
+
+    /* prettier-ignore */ console.log(`Collector: getTxReceiptDetails call for txHash: ${txHash}`)
     try {
       const apiQuery = `${this.baseUrl}/api/transaction?txHash=${txHash}`
       const response = await axios.get(apiQuery).then((response) => {
@@ -133,19 +102,14 @@ class Collector extends BaseExternal {
           throw new Error('Failed to fetch transaction')
         } else return response
       })
-      if (verbose) {
-        console.log('The response from the collector is', response.data)
-      }
-      if (hashReceipt) {
-        return response.data.transactions[0]
-      }
+      /* prettier-ignore */ if (verbose) console.log(`Collector: getTxReceiptDetails /api/transaction response: ${JSON.stringify(response.data)}`)
 
       const txId = response.data.transactions[0].txId
       const receiptQuery = `${this.baseUrl}/api/receipt?txId=${txId}`
       const receipt = await axios.get(receiptQuery).then((response) => response.data.receipts)
       return receipt
     } catch (error) {
-      console.error('An error occurred for getTxReceiptDetails:', error)
+      console.error('Collector: Error getting transaction receipt details', error)
       return null
     }
   }
@@ -173,6 +137,8 @@ class Collector extends BaseExternal {
     details = false
   ): Promise<readableBlock | null> {
     if (!CONFIG.collectorSourcing.enabled) return null
+
+    /* prettier-ignore */ console.log(`Collector: getBlock call for block: ${block}`)
     try {
       let blockQuery
       if (inpType === 'hex_num') {
@@ -181,6 +147,7 @@ class Collector extends BaseExternal {
       } else {
         blockQuery = `${this.baseUrl}/api/blocks?hash=${block}`
       }
+      /* prettier-ignore */ if (verbose) console.log(`Collector: getBlock blockQuery: ${blockQuery}`)
 
       const response = await axios.get(blockQuery).then((response) => response.data)
       if (!response.success) return null
@@ -220,13 +187,15 @@ class Collector extends BaseExternal {
 
   async fetchAccount(key: string, timestamp: number): Promise<{ accountId: any; data: any } | null> {
     if (!CONFIG.collectorSourcing.enabled) return null
+
+    /* prettier-ignore */ console.log(`Collector: fetchAccount call for key: ${key}`)
     const accountKey = `0x${key.slice(0, -24)}`
     const apiQuery = `${this.baseUrl}/api/transaction?address=${accountKey}&beforeTimestamp=${timestamp}`
 
     const txCount = await axios.get(apiQuery).then((response) => response.data.totalTransactions)
     if (txCount === 0) {
       // Account does not exist!
-      console.log('Performed query on this and returned 0 for txCount', apiQuery)
+      /* prettier-ignore */ console.log(`Collector: fetchAccount account does not exist for key: ${key}`)
       return null
     }
 
@@ -261,6 +230,33 @@ class Collector extends BaseExternal {
     }
 
     return null
+  }
+
+  buildLogAPIUrl(request: any, baseDomain = CONFIG.explorerUrl): string {
+    const apiUrl = `${baseDomain}/api/v2/logs`
+    const queryParams: string[] = []
+
+    // Check if each query parameter exists in the request object and add it to the queryParams array if it does
+    if (typeof request.address === 'string') {
+      queryParams.push(`address=${request.address}`)
+    }
+    if (Array.isArray(request.address)) {
+      queryParams.push(`address=${JSON.stringify(request.address)}`)
+    }
+    if (request.topics && request.topics.length > 0) {
+      queryParams.push(`topics=${JSON.stringify(request.topics)}`)
+    }
+    if (request.fromBlock) {
+      queryParams.push(`fromBlock=${request.fromBlock}`)
+    }
+    if (request.toBlock) {
+      queryParams.push(`toBlock=${request.toBlock}`)
+    }
+    if (request.blockHash) {
+      queryParams.push(`blockHash=${request.blockHash}`)
+    }
+    // Combine the base URL with the query parameters
+    return `${apiUrl}${queryParams.length > 0 ? `?${queryParams.join('&')}` : ''}`
   }
 }
 

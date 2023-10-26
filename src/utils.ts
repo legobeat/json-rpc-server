@@ -1176,7 +1176,6 @@ async function fetchLatestAccount(key: string, type: number) {
 }
 
 async function fetchAccountFromCollector(account: { type: number; key: string }, timestamp: number) {
- 
   if (account.type === 0) {
     // EOA/CA
     console.log('Getting data account.type === 0')
