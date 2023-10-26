@@ -5,6 +5,7 @@ import { CONFIG } from '../config'
 import { LogQueryRequest } from '../types'
 import { BaseExternal, axiosWithRetry } from './BaseExternal'
 import { bufferToHex } from 'ethereumjs-util'
+import { json } from 'body-parser'
 
 class Collector extends BaseExternal {
   constructor(baseURL: string) {
@@ -74,7 +75,7 @@ class Collector extends BaseExternal {
     }
 
     try {
-      /* prettier-ignore */ if (verbose) console.log(`Collector: getTransactionByHash fullUrl: ${fullUrl}`)
+      /* prettier-ignore */ if (verbose) console.log(`Collector: getTransactionByHash fullUrl: ${JSON.stringify(requestConfig)}`)
       const res = await axiosWithRetry<{ success: boolean; transactions: any }>(requestConfig)
       if (!res.data.success) return null
 
@@ -123,32 +124,39 @@ class Collector extends BaseExternal {
     }
   }
 
-  async fetchLocalTxReceipt(txHash: string, hashReceipt = false): Promise<any> {
+  async getTxReceiptDetails(txHash: string, hashReceipt = false): Promise<any> {
     if (!CONFIG.collectorSourcing.enabled) return null
+    try {
+      const apiQuery = `${this.baseUrl}/api/transaction?txHash=${txHash}`
+      const response = await axios.get(apiQuery).then((response) => {
+        if (!response) {
+          throw new Error('Failed to fetch transaction')
+        } else return response
+      })
+      if (verbose) {
+        console.log('The response from the collector is', response.data)
+      }
+      if (hashReceipt) {
+        return response.data.transactions[0]
+      }
 
-    const apiQuery = `${this.baseUrl}/api/transaction?txHash=${txHash}`
-    const response = await axios.get(apiQuery).then((response) => {
-      if (!response) {
-        throw new Error('Failed to fetch transaction')
-      } else return response
-    })
-    if (verbose) {
-      console.log('The response from the collector is', response.data)
+      const txId = response.data.transactions[0].txId
+      const receiptQuery = `${this.baseUrl}/api/receipt?txId=${txId}`
+      const receipt = await axios.get(receiptQuery).then((response) => response.data.receipts)
+      return receipt
+    } catch (error) {
+      console.error('An error occurred for getTxReceiptDetails:', error)
+      return null
     }
-    if (hashReceipt) {
-      return response.data.transactions[0]
-    }
-
-    const txId = response.data.transactions[0].txId
-    const receiptQuery = `${this.baseUrl}/api/receipt?txId=${txId}`
-    const receipt = await axios.get(receiptQuery).then((response) => response.data.receipts)
-    return receipt
   }
 
-  async fetchLocalStorage(txHash: string): Promise<{ key: string; value: string }[] | null> {
+  async getStorage(txHash: string): Promise<{ key: string; value: string }[] | null> {
     if (!CONFIG.collectorSourcing.enabled) return null
 
-    const receipt = await this.fetchLocalTxReceipt(txHash)
+    const receipt = await this.getTxReceiptDetails(txHash)
+    if (!receipt) {
+      return null
+    }
     const beforeStates: any[] = receipt.beforeStateAccounts
     const storageRecords = beforeStates.map((account) => {
       return {
@@ -210,16 +218,16 @@ class Collector extends BaseExternal {
     }
   }
 
-  async fetchAccount(key: string, timestamp: number): Promise<{ accountId: any; data: any } | undefined> {
+  async fetchAccount(key: string, timestamp: number): Promise<{ accountId: any; data: any } | null> {
+    if (!CONFIG.collectorSourcing.enabled) return null
     const accountKey = `0x${key.slice(0, -24)}`
-    const apiQuery = `http://127.0.0.1:6001/api/transaction?address=${accountKey}&beforeTimestamp=${timestamp}`
-    const result = await axios.get(apiQuery).then((response) => response.data)
+    const apiQuery = `${this.baseUrl}/api/transaction?address=${accountKey}&beforeTimestamp=${timestamp}`
 
     const txCount = await axios.get(apiQuery).then((response) => response.data.totalTransactions)
     if (txCount === 0) {
       // Account does not exist!
       console.log('Performed query on this and returned 0 for txCount', apiQuery)
-      return undefined
+      return null
     }
 
     let i = 1
@@ -252,7 +260,7 @@ class Collector extends BaseExternal {
       }
     }
 
-    return undefined
+    return null
   }
 }
 

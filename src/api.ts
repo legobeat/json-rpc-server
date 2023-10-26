@@ -1290,6 +1290,7 @@ export const methods = {
       console.log("The result from the collector is", result)
     }
     if (result) {
+      // result found, skipping querying from archiver, validator and explorer. 
       success = true
       retry = 100
     }
@@ -1964,7 +1965,7 @@ export const methods = {
 
     try {
       const txHash = args[0]
-      let states = await collectorAPI.fetchLocalStorage(txHash) 
+      let states = await collectorAPI.getStorage(txHash) 
       if(!states) {
         states = await fetchStorage(txHash)
       } 

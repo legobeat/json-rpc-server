@@ -1176,9 +1176,7 @@ async function fetchLatestAccount(key: string, type: number) {
 }
 
 async function fetchAccountFromCollector(account: { type: number; key: string }, timestamp: number) {
-  if (!config.collectorSourcing) {
-    return undefined
-  }
+ 
   if (account.type === 0) {
     // EOA/CA
     console.log('Getting data account.type === 0')
@@ -1373,7 +1371,7 @@ export async function replayTransaction(txHash: string, flag: string) {
   if (fs.existsSync(path.join(transactionsFolder, txHash + '.json'))) {
     receipt = JSON.parse(fs.readFileSync(path.join(transactionsFolder, txHash + '.json'), 'utf8'))
   } else {
-    receipt = await collectorAPI.fetchLocalTxReceipt(txHash)
+    receipt = await collectorAPI.getTxReceiptDetails(txHash)
     if (!receipt) {
       receipt = await fetchTxReceipt(config.explorerUrl, txHash)
     }
