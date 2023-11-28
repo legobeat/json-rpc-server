@@ -15,7 +15,8 @@ import {
 } from './utils'
 import crypto from 'crypto'
 import { logEventEmitter } from './logger'
-import { CONFIG as config } from './config' 
+import { CONFIG as config } from './config'
+
 
 export const verbose = config.verbose
 
@@ -36,9 +37,23 @@ const nonceTracker: any = {}
 type InjectResponse = {
   success: boolean
   reason: string
-  status: number 
+  status: number
 }
 
+
+/**
+ * Represents the status of a transaction.
+ *
+ * @typedef {object} TxStatus
+ * @property {string} txHash - The hash of the transaction.
+ * @property {string} raw - The raw data of the transaction.
+ * @property {boolean} injected - Indicates whether the transaction has been injected.
+ * @property {boolean} accepted - Indicates whether the transaction has been accepted.
+ * @property {string} reason - The reason for the transaction status.
+ * @property {number} timestamp - The timestamp of the transaction. If not provided, it defaults to the current timestamp.
+ * @property {string} [ip] - The IP address associated with the transaction.
+ * @property {string} [nodeUrl] - The URL of the node associated with the transaction.
+ */
 export type TxStatus = {
   txHash: string
   raw: string
@@ -49,6 +64,21 @@ export type TxStatus = {
   ip?: string
   nodeUrl?: string
 }
+
+/**
+ * Represents the detailed status of a transaction.
+ * @typedef {Object} DetailedTxStatus
+ * @property {string} [ip] - The IP address associated with the transaction.
+ * @property {string} txHash - The hash of the transaction.
+ * @property {string} type - The type of the transaction.
+ * @property {string} to - The recipient address of the transaction.
+ * @property {string} from - The sender address of the transaction.
+ * @property {boolean} injected - Indicates whether the transaction has been injected.
+ * @property {TxStatusCode} accepted - The status code indicating the acceptance of the transaction.
+ * @property {string} reason - The reason for the transaction status.
+ * @property {string} timestamp - The timestamp of the transaction.
+ * @property {string} [nodeUrl] - The URL of the node associated with the transaction.
+ */
 export type DetailedTxStatus = {
   ip?: string
   txHash: string
@@ -62,6 +92,11 @@ export type DetailedTxStatus = {
   nodeUrl?: string
 }
 
+/**
+ * Retrieves the current block information from the validator.
+ * 
+ * @returns {Promise<any>} The current block information.
+ */
 async function getCurrentBlockInfo() {
   if (verbose) console.log('Running getCurrentBlockInfo')
   let result = { ...lastCycleInfo, nodeUrl: undefined }
@@ -80,13 +115,18 @@ async function getCurrentBlockInfo() {
   return result
 }
 
+/**
+ * Retrieves the current block information.
+ * 
+ * @returns An object containing the current block information.
+ */
 async function getCurrentBlock() {
   let blockNumber = '0'
   let timestamp = '0x55ba467c'
   let nodeUrl
   try {
     const result = await getCurrentBlockInfo()
-    nodeUrl =  result?.nodeUrl 
+    nodeUrl = result?.nodeUrl
     blockNumber = result.blockNumber
     timestamp = result.timestamp
   } catch (e) {
@@ -119,6 +159,14 @@ async function getCurrentBlock() {
   }
 }
 
+/**
+ * Creates a reject transaction status.
+ * 
+ * @param txHash - The hash of the transaction.
+ * @param reason - The reason for rejecting the transaction.
+ * @param ip - The IP address of the client.
+ * @param nodeUrl - The URL of the node (optional).
+ */
 export function createRejectTxStatus(txHash: string, reason: string, ip: string, nodeUrl?: string) {
   recordTxStatus({
     txHash: txHash,
@@ -132,6 +180,11 @@ export function createRejectTxStatus(txHash: string, reason: string, ip: string,
   })
 }
 
+/**
+ * Records the transaction status.
+ * 
+ * @param txStatus The transaction status to be recorded.
+ */
 export function recordTxStatus(txStatus: TxStatus) {
   txStatuses.push(txStatus)
   if (txStatuses.length > maxTxCountToStore && config.recordTxStatus) {
@@ -139,6 +192,14 @@ export function recordTxStatus(txStatus: TxStatus) {
   }
 }
 
+/**
+ * Injects a transaction into the network and records its status.
+ * 
+ * @param txHash - The hash of the transaction.
+ * @param tx - The transaction object.
+ * @param args - Additional arguments.
+ * @returns A promise that resolves with the injection result or rejects with an error.
+ */
 function injectAndRecordTx(txHash: string, tx: any, args: any) {
   const { raw } = tx
   const nodeUrl = getBaseUrl()
@@ -150,7 +211,7 @@ function injectAndRecordTx(txHash: string, tx: any, args: any) {
         console.log('inject tx result', txHash, response.data)
         if (config.recordTxStatus === false) {
           return resolve({
-            nodeUrl: nodeUrl, 
+            nodeUrl: nodeUrl,
             success: injectResult ? injectResult.success : false,
             reason: injectResult.reason,
             status: injectResult.status,
@@ -169,7 +230,7 @@ function injectAndRecordTx(txHash: string, tx: any, args: any) {
             nodeUrl: nodeUrl
           })
           return resolve({
-            nodeUrl: nodeUrl, 
+            nodeUrl: nodeUrl,
             success: injectResult ? injectResult.success : false,
             reason: injectResult.reason,
             status: injectResult.status
@@ -185,7 +246,7 @@ function injectAndRecordTx(txHash: string, tx: any, args: any) {
             ip: args[1000], // this index slot is reserved for ip, check injectIP middleware
             nodeUrl: nodeUrl
           })
-          reject({nodeUrl: nodeUrl, error: "Unable inject transaction to the network"})
+          reject({ nodeUrl: nodeUrl, error: "Unable inject transaction to the network" })
         }
       })
       .catch(() => {
@@ -200,11 +261,17 @@ function injectAndRecordTx(txHash: string, tx: any, args: any) {
             ip: args[1000], // this index slot is reserved for ip, check injectIP middleware l
             nodeUrl: nodeUrl
           })
-          reject({nodeUrl: nodeUrl, error: "Unable inject transaction to the network"})
+        reject({ nodeUrl: nodeUrl, error: "Unable inject transaction to the network" })
       })
   })
 }
 
+/**
+ * Saves the transaction status to the server.
+ * If `config.recordTxStatus` is false or `txStatuses` is empty, the function returns early.
+ * The function emits a 'tx_insert_db' event with a clone of `txStatuses` and sends a POST request to the server with the clone.
+ * Finally, it logs the response data.
+ */
 export async function saveTxStatus() {
   if (!config.recordTxStatus) return
   if (txStatuses.length === 0) return
@@ -215,8 +282,17 @@ export async function saveTxStatus() {
   console.log('forward Tx Status To Explorer', response.data)
 }
 
+
+/**
+ * JSON-RPC API methods.
+ */
 export const methods = {
-  web3_clientVersion: async function (args: any, callback: any) {
+  /**
+  * RPC: 
+  * `web3_clientVersion()` => `String`
+  * @returns Web3 Client Version
+  */
+  web3_clientVersion: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'web3_clientVersion'
     const ticket = crypto
       .createHash('sha1')
@@ -232,11 +308,18 @@ export const methods = {
     }
     const result = 'Mist/v0.9.3/darwin/go1.4.1'
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
 
   },
-  web3_sha3: async function (args: any, callback: any) {
+  /**
+  * WORK IN PROGRESS - NOT PRODUCTION READY
+  * RPC: 
+  * `web3_sha3(String)` => `String`
+  * @param data Hexadecimal data to be converted into a SHA3 hash
+  * @returns SHA3 hash of `data`
+  */
+  web3_sha3: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'web3_sha3'
     const ticket = crypto
       .createHash('sha1')
@@ -249,11 +332,16 @@ export const methods = {
     }
     const result = '0x47173285a8d7341e5e972fc677286384f802f8ef42a5ec5f03bbfa254cb01fad'
 
-    logEventEmitter.emit('fn_end', ticket, {success: true},performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
 
   },
-  net_version: async function (args: any, callback: any) {
+  /**
+  * RPC: 
+  * `net_version()` => `String`
+  * @returns Net Version
+  */
+  net_version: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'net_version'
     const ticket = crypto
       .createHash('sha1')
@@ -266,10 +354,15 @@ export const methods = {
     }
     const chainId = config.chainId.toString()
 
-    logEventEmitter.emit('fn_end', ticket, {success: true},performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, chainId)
   },
-  net_listening: async function (args: any, callback: any) {
+  /**
+  * RPC: 
+  * `net_listening()` => `Bool`
+  * @returns Listening status
+  */
+  net_listening: async function (args: string[], callback: (err: Error | null, res: boolean | null) => Promise<void>) {
     const api_name = 'net_listening'
     const ticket = crypto
       .createHash('sha1')
@@ -281,10 +374,15 @@ export const methods = {
     }
     const result = true
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  net_peerCount: async function (args: any, callback: any) {
+  /**
+  * RPC: 
+  * `net_peerCount()` => `String`
+  * @returns Peer count
+  */
+  net_peerCount: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'net_peerCount'
     const ticket = crypto
       .createHash('sha1')
@@ -296,10 +394,15 @@ export const methods = {
     }
     const result = '0x2'
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_protocolVersion: async function (args: any, callback: any) {
+  /**
+  * RPC: 
+  * `eth_protocolVersion()` => `String`
+  * @returns Protocol Version
+  */
+  eth_protocolVersion: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_protocolVersion'
     const ticket = crypto
       .createHash('sha1')
@@ -311,10 +414,15 @@ export const methods = {
     }
     const result = '54'
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_syncing: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_syncing()` => `Bool`
+   * @returns Syncing status
+   */
+  eth_syncing: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_syncing'
     const ticket = crypto
       .createHash('sha1')
@@ -326,10 +434,15 @@ export const methods = {
     }
     const result = 'false'
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_coinbase: async function (args: any, callback: any) {
+  /**
+  * RPC: 
+  * `eth_coinbase()` => `String`
+  * @returns Empty String
+  */
+  eth_coinbase: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_coinbase'
     const ticket = crypto
       .createHash('sha1')
@@ -341,10 +454,15 @@ export const methods = {
     }
     const result = ''
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_mining: async function (args: any, callback: any) {
+  /**
+  * RPC: 
+  * `eth_mining()` => `Bool`
+  * @returns ETH mining status
+  */
+  eth_mining: async function (args: string[], callback: (err: Error | null, res: boolean | null) => Promise<void>) {
     const api_name = 'eth_mining'
     const ticket = crypto
       .createHash('sha1')
@@ -356,10 +474,15 @@ export const methods = {
     }
     const result = true
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_hashrate: async function (args: any, callback: any) {
+  /**
+  * RPC: 
+  * `eth_hashrate()` => `String`
+  * @returns ETH hashrate
+  */
+  eth_hashrate: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_hashrate'
     const ticket = crypto
       .createHash('sha1')
@@ -371,10 +494,15 @@ export const methods = {
     }
     const result = '0x38a'
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_gasPrice: async function (args: any, callback: any) {
+  /**
+  * RPC: 
+  * `eth_gasPrice()` => `String`
+  * @returns ETH gas price
+  */
+  eth_gasPrice: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_gasPrice'
     const ticket = crypto
       .createHash('sha1')
@@ -386,10 +514,15 @@ export const methods = {
     }
     const result = '0x1dfd14000'
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_accounts: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_accounts()` => `String[]`
+   * @returns List of ETH accounts
+   */
+  eth_accounts: async function (args: string[], callback: (err: Error | null, res: string[] | null) => Promise<void>) {
     const api_name = 'eth_accounts'
     const ticket = crypto
       .createHash('sha1')
@@ -401,10 +534,15 @@ export const methods = {
     }
     const result = ['0x407d73d8a49eeb85d32cf465507dd71d507100c1']
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_blockNumber: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_blockNumber()` => `String`
+   * @returns Current ETH block number
+   */
+  eth_blockNumber: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_blockNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -418,14 +556,20 @@ export const methods = {
     if (verbose) console.log('BLOCK NUMBER', blockNumber, parseInt(blockNumber, 16))
     if (blockNumber == null) {
 
-      logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: true}, performance.now())
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
       callback(null, '0x0')
     } else {
-      logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: true}, performance.now())
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
       callback(null, blockNumber)
     }
   },
-  eth_getBalance: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_getBalance(String)` => `String`
+   * @param address - Address to check
+   * @returns ETH balance of given address
+   */
+  eth_getBalance: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_getBalance'
     const ticket = crypto
       .createHash('sha1')
@@ -449,16 +593,22 @@ export const methods = {
       const SHD = intStringToHex(account.balance)
       if (verbose) console.log('SHD', typeof SHD, SHD)
       balance = intStringToHex(account.balance)
-      logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: true}, performance.now())
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
       callback(null, balance)
     } catch (e) {
       // if (verbose) console.log('Unable to get account balance', e)
-      logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: false}, performance.now())
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: false }, performance.now())
       callback(null, balance)
     }
     if (verbose) console.log('Final balance', balance)
   },
-  eth_getStorageAt: async function (args: any, callback: any) {
+  /**
+   * WORK IN PROGRESS - NOT PRODUCTION READY
+   * RPC: 
+   * `eth_getStorageAt()` => `String`
+   * @returns TODO
+   */
+  eth_getStorageAt: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_getStorageAt'
     const ticket = crypto
       .createHash('sha1')
@@ -469,10 +619,16 @@ export const methods = {
       console.log('Running eth_getStorageAt', args)
     }
     const result = '0x00000000000000000000000000000000000000000000000000000000000004d2'
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_getTransactionCount: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_getTransactionCount(String)` => `String`
+   * @param address - Address to check
+   * @returns ETH transaction count of given address
+   */
+  eth_getTransactionCount: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_getTransactionCount'
     const ticket = crypto
       .createHash('sha1')
@@ -497,19 +653,25 @@ export const methods = {
           console.log('Transaction count', result)
         }
 
-        logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: true}, performance.now())
+        logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
         callback(null, result)
       } else {
 
-        logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: true}, performance.now())
+        logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
         callback(null, '0x0')
       }
     } catch (e) {
       if (verbose) console.log('Unable to getTransactionCount', e)
-      logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: false}, performance.now())
-    }  
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: false }, performance.now())
+    }
   },
-  eth_getBlockTransactionCountByHash: async function (args: any, callback: any) {
+  /**
+   * WORK IN PROGRESS - NOT PRODUCTION READY
+   * RPC: 
+   * `eth_getBlockTransactionCountByHash()` => `String`
+   * @returns 
+   */
+  eth_getBlockTransactionCountByHash: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_getBlockTransactionCountByHash'
     const ticket = crypto
       .createHash('sha1')
@@ -522,9 +684,15 @@ export const methods = {
     }
     const result = '0xb'
     callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_getBlockTransactionCountByNumber: async function (args: any, callback: any) {
+  /**
+   * WORK IN PROGRESS - NOT PRODUCTION READY
+   * RPC: 
+   * `eth_getBlockTransactionCountByNumber()` => `String`
+   * @returns 
+   */
+  eth_getBlockTransactionCountByNumber: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_getBlockTransactionCountByNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -535,10 +703,16 @@ export const methods = {
       console.log('Running getBlockTransactionCountByNumber', args)
     }
     const result = '0xa'
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_getUncleCountByBlockHash: async function (args: any, callback: any) {
+  /**
+   * WORK IN PROGRESS - NOT PRODUCTION READY
+   * RPC: 
+   * `eth_getUncleCountByBlockHash()` => `String`
+   * @returns 
+   */
+  eth_getUncleCountByBlockHash: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_getUncleCountByBlockHash'
     const ticket = crypto
       .createHash('sha1')
@@ -550,10 +724,16 @@ export const methods = {
     }
     const result = '0x0'
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_getUncleCountByBlockNumber: async function (args: any, callback: any) {
+  /**
+   * WORK IN PROGRESS - NOT PRODUCTION READY
+   * RPC: 
+   * `eth_getUncleCountByBlockNumber()` => `String`
+   * @returns 
+   */
+  eth_getUncleCountByBlockNumber: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_getUncleCountByBlockNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -565,10 +745,16 @@ export const methods = {
     }
     const result = '0x0'
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_getCode: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_getCode(String)` => `String`
+   * @param address - Address to check
+   * @returns ETH bytecode hash for given contract
+   */
+  eth_getCode: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_getCode'
     const ticket = crypto
       .createHash('sha1')
@@ -587,20 +773,27 @@ export const methods = {
       // if (account && account.codeHash && account.codeHash) {
       if (account && account.codeHash && account.codeHash !== emptyCodeHash) {
         if (verbose) console.log('eth_getCode result', account.codeHash)
-        logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: true}, performance.now())
+        logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
         callback(null, account.codeHash)
         return
       }
       const result = '0x0'
       if (verbose) console.log('eth_getCode result', result)
-      logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: true}, performance.now())
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
       callback(null, result)
     } catch (e) {
       console.log('Unable to eth_getCode', e)
-      logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: false}, performance.now())
-    } 
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: false }, performance.now())
+    }
   },
-  eth_signTransaction: async function (args: any, callback: any) {
+  /**
+   * WORK IN PROGRESS - NOT PRODUCTION READY
+   * RPC: 
+   * `eth_signTransaction()` => `String`
+   * @param address - Address to check
+   * @returns 
+   */
+  eth_signTransaction: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_signTransaction'
     const ticket = crypto
       .createHash('sha1')
@@ -612,10 +805,17 @@ export const methods = {
     }
     const result =
       '0xa3f20717a250c2b0b729b7e5becbff67fdaef7e0699da4de7ca5895b02a170a12d887fd3b17bfdce3481f10bea41f45ba9f709d39ce8325427b57afcfc994cee1b'
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_sendTransaction: async function (args: any, callback: any) {
+  /**
+   * WORK IN PROGRESS - NOT PRODUCTION READY
+   * RPC: 
+   * `eth_sendTransaction()` => `String`
+   * @param address - Address to check
+   * @returns 
+   */
+  eth_sendTransaction: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_sendTransaction'
     const ticket = crypto
       .createHash('sha1')
@@ -628,10 +828,16 @@ export const methods = {
     }
     const result = '0xe670ec64341771606e55d6b4ca35a1a6b75ee3d5145a99d05921026d1527331'
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_sendRawTransaction: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_sendRawTransaction(Object)` => `String`
+   * @param transaction - Raw transaction to send
+   * @returns ETH transaction hash
+   */
+  eth_sendRawTransaction: async function (args: any[], callback: (err: Error | any | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_sendRawTransaction'
     const ticket = crypto
       .createHash('sha1')
@@ -680,8 +886,8 @@ export const methods = {
               const pendingTx = memPoolTx.shift()
               console.log(`Injecting pending tx in the mem pool`, pendingTx.nonce)
               nodeUrl = injectAndRecordTx(txHash, pendingTx.tx, args)
-                       .then((res:any) => res.nodeUrl)
-                       .catch((e:any)=> e.nodeUrl)
+                .then((res: any) => res.nodeUrl)
+                .catch((e: any) => e.nodeUrl)
               nonceTracker[String(sender)] = pendingTx.nonce;
               console.log(`Pending tx count for ${sender}: ${txMemPool[sender].length}`)
               await sleep(500)
@@ -709,8 +915,8 @@ export const methods = {
           nodeUrl = res.nodeUrl
           if (res.success === true) {
             logEventEmitter.emit('fn_end', ticket, {
-              nodeUrl: res.nodeUrl, 
-              success: true, 
+              nodeUrl: res.nodeUrl,
+              success: true,
               reason: res.reason,
               hash: txHash
             }, performance.now())
@@ -718,8 +924,8 @@ export const methods = {
           }
           if (res.success !== true && config.adaptiveRejection) {
             logEventEmitter.emit('fn_end', ticket, {
-              nodeUrl: res.nodeUrl, 
-              success: false, 
+              nodeUrl: res.nodeUrl,
+              success: false,
               reason: res.reason,
               hash: txHash
             }, performance.now())
@@ -728,9 +934,9 @@ export const methods = {
         })
         .catch((e) => {
           logEventEmitter.emit('fn_end', ticket, {
-            nodeUrl: e.nodeUrl, 
-            success: false, 
-            reason:e.error, 
+            nodeUrl: e.nodeUrl,
+            success: false,
+            reason: e.error,
             hash: txHash
           }, performance.now())
           callback(e, null)
@@ -738,15 +944,21 @@ export const methods = {
     } catch (e: any) {
       console.log(`Error while injecting tx to consensor`, e)
       logEventEmitter.emit('fn_end', ticket, {
-        nodeUrl, 
-        success: false, 
+        nodeUrl,
+        success: false,
         reason: e.toString(),
-        hash:txHash
+        hash: txHash
       }, performance.now())
       callback({ message: e }, null)
     }
   },
-  eth_sendInternalTransaction: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_sendInternalTransaction(Object)` => `String`
+   * @param transaction - Transaction to send
+   * @returns ETH transaction hash
+   */
+  eth_sendInternalTransaction: async function (args: any[], callback: (err: any | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_sendInternalTransaction'
     const ticket = crypto
       .createHash('sha1')
@@ -770,8 +982,8 @@ export const methods = {
           if (res.success === true) {
 
             logEventEmitter.emit('fn_end', ticket, {
-              nodeUrl: res.nodeUrl, 
-              success: true, 
+              nodeUrl: res.nodeUrl,
+              success: true,
               reason: res.reason,
               hash: txHash
             }, performance.now())
@@ -780,30 +992,36 @@ export const methods = {
           }
           if (res.success !== true && config.adaptiveRejection) {
             logEventEmitter.emit('fn_end', ticket, {
-              nodeUrl: res.nodeUrl, 
-              success: false, 
+              nodeUrl: res.nodeUrl,
+              success: false,
               reason: res.reason,
               hash: txHash
             }, performance.now())
-            callback({ message: 'Internal tx injection failure' }, null)
+            callback(Error('Internal tx injection failure'), null)
           }
         })
         .catch((res) => {
           logEventEmitter.emit('fn_end', ticket, {
-            nodeUrl: res.nodeUrl, 
-            success: false, 
+            nodeUrl: res.nodeUrl,
+            success: false,
             reason: res.error,
-            hash:txHash
+            hash: txHash
           }, performance.now())
           callback(res.error, null)
         })
     } catch (e) {
       console.log(`Error while injecting tx to consensor`, e)
-      logEventEmitter.emit('fn_end', ticket, {nodeUrl: undefined, success: false}, performance.now())
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl: undefined, success: false }, performance.now())
       callback({ message: e }, null)
-    }       
+    }
   },
-  eth_call: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_call(Object)` => `String`
+   * @param CallObject - Contract call object
+   * @returns ETH call response
+   */
+  eth_call: async function (args: any[], callback: (err: any | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_call'
     const ticket = crypto
       .createHash('sha1')
@@ -825,22 +1043,28 @@ export const methods = {
       if (verbose) console.log('contract call res.data.result', callObj, nodeUrl, res.data.result)
       if (res.data == null || res.data.result == null) {
         //callback(null, errorHexStatus)
-        callback(errorBusy)
-        logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: false}, performance.now())
+        callback(errorBusy, null)
+        logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: false }, performance.now())
         return
       }
       const result = '0x' + res.data.result
       if (verbose) console.log('eth_call result from', nodeUrl, result)
-      logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: true}, performance.now())
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
       callback(null, result)
     } catch (e) {
       console.log(`Error while making an eth call`, e)
       //callback(null, errorHexStatus)
-      logEventEmitter.emit('fn_end', ticket, {nodeUrl: undefined, success: false}, performance.now())
-      callback(errorBusy)
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl: undefined, success: false }, performance.now())
+      callback(errorBusy, null)
     }
   },
-  eth_estimateGas: async function (args: any, callback: any) {
+  /**
+   * WORK IN PROGRESS - NOT PRODUCTION READY
+   * RPC: 
+   * `eth_estimateGas()` => `String`
+   * @returns ETH Gas estimate
+   */
+  eth_estimateGas: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_estimateGas'
     const ticket = crypto
       .createHash('sha1')
@@ -859,10 +1083,15 @@ export const methods = {
     } catch (e) {
       console.log('Estimate gas error', e)
     }
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_getBlockByHash: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_getBlockByHash()` => `Object`
+   * @returns Current Block
+   */
+  eth_getBlockByHash: async function (args: string[], callback: (err: Error | null, res: object | null) => Promise<void>) {
     const api_name = 'eth_getBlockByHash'
     const ticket = crypto
       .createHash('sha1')
@@ -875,10 +1104,16 @@ export const methods = {
     //getCurrentBlock handles errors, no try catch needed
     const result = await getCurrentBlock()
 
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_getBlockByNumber: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_getBlockByNumber(Number)` => `Object`
+   * @param blockNumber - Block to fetch or 'latest' for latest block
+   * @returns Block correspondent to `blockNumber`
+   */
+  eth_getBlockByNumber: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_getBlockByNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -888,16 +1123,22 @@ export const methods = {
     if (verbose) {
       console.log('Running getBlockByNumber', args)
     }
-    let blockNumber = args[0]
+    let blockNumber: string | number = args[0]
     if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
     const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByNumber?blockNumber=${blockNumber}`)
     const nodeUrl = res.data.nodeUrl
     const result = res.data.block
     if (verbose) console.log('BLOCK DETAIL', result)
     callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: res.data.block ? true: false}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: res.data.block ? true : false }, performance.now())
   },
-  eth_getTransactionByHash: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_getTransactionByHash(String)` => `Object`
+   * @param txHash - Transaction hash
+   * @returns Transaction correspondent to `txHash`
+   */
+  eth_getTransactionByHash: async function (args: string[], callback: (err: object | null, res: object | null) => Promise<void>) {
     const api_name = 'eth_getTransactionByHash'
     const ticket = crypto
       .createHash('sha1')
@@ -989,8 +1230,8 @@ export const methods = {
       }
     }
     if (!result) {
-      logEventEmitter.emit('fn_end', ticket, {success: false}, performance.now())
-      callback(errorBusy)
+      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+      callback(errorBusy, null)
       return
     }
     if (result.value === '0') {
@@ -1011,38 +1252,16 @@ export const methods = {
     defaultResult.value = result.value.indexOf('0x') === -1 ? '0x' + result.value : result.value
     defaultResult.gas = result.gasUsed
     if (verbose) console.log('Final Tx:', txHash, defaultResult)
-    logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
     callback(null, defaultResult)
   },
-  eth_getTransactionByBlockHashAndIndex: async function (args: any, callback: any) {
-    const api_name = 'eth_getTransactionByBlockHashAndIndex'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running getTransactionByBlockHashAndIndex', args)
-    }
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_getTransactionByBlockNumberAndIndex: async function (args: any, callback: any) {
-    const api_name = 'eth_getTransactionByBlockNumberAndIndex'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running getTransactionByBlockNumberAndIndex', args)
-    }
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_getTransactionReceipt: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_getTransactionReceipt(String)` => `Object`
+   * @param txHash - Transaction hash
+   * @returns Receipt correspondent to transaction `txHash`
+   */
+  eth_getTransactionReceipt: async function (args: string[], callback: (err: object | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_getTransactionReceipt'
     const ticket = crypto
       .createHash('sha1')
@@ -1107,375 +1326,20 @@ export const methods = {
         if (verbose) console.log(`getTransactionReceipt result for ${txHash}`, result)
       }
       callback(null, result)
-      logEventEmitter.emit('fn_end', ticket, {nodeUrl, success: true}, performance.now())
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
     } catch (e) {
       console.log('Unable to eth_getTransactionReceipt', e)
       //callback(null, errorHexStatus)
-      callback(errorBusy)
-      logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+      callback(errorBusy, null)
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     }
   },
-  eth_getUncleByBlockHashAndIndex: async function (args: any, callback: any) {
-    const api_name = 'eth_getUncleByBlockHashAndIndex'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running getUncleByBlockHashAndIndex', args)
-    }
-    const result = null
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_getUncleByBlockNumberAndIndex: async function (args: any, callback: any) {
-    const api_name = 'eth_getUncleByBlockNumberAndIndex'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running getUncleByBlockNumberAndIndex', args)
-    }
-    const result = null
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_getCompilers: async function (args: any, callback: any) {
-    const api_name = 'eth_getCompilers'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running getCompilers', args)
-    }
-    const result = ['solidity', 'lll', 'serpent']
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_compileSolidity: async function (args: any, callback: any) {
-    const api_name = 'eth_compileSolidity'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running compileSolidity', args)
-    }
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_compileLLL: async function (args: any, callback: any) {
-    const api_name = 'eth_compileLLL'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_compileSerpent: async function (args: any, callback: any) {
-    const api_name = 'eth_compileSerpent'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_newBlockFilter: async function (args: any, callback: any) {
-    const api_name = 'eth_newBlockFilter'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = '0x1'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_newPendingTransactionFilter: async function (args: any, callback: any) {
-    const api_name = 'eth_newPendingTransactionFilter'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running newPendingTransactionFilter', args)
-    }
-    const result = '0x1'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_uninstallFilter: async function (args: any, callback: any) {
-    const api_name = 'eth_uninstallFilter'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = true
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_getFilterChanges: async function (args: any, callback: any) {
-    const api_name = 'eth_getFilterChanges'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_getFilterLogs: async function (args: any, callback: any) {
-    const api_name = 'eth_getFilterLogs'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_getLogs: async function (args: any, callback: any) {
-    const api_name = 'eth_getLogs'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    if (verbose) {
-      console.log('Running getLogs', args)
-    }
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_getWork: async function (args: any, callback: any) {
-    const api_name = 'eth_getWork'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_submitWork: async function (args: any, callback: any) {
-    const api_name = 'eth_submitWork'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_submitHashrate: async function (args: any, callback: any) {
-    const api_name = 'eth_submitHashrate'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  db_putString: async function (args: any, callback: any) {
-    const api_name = 'db_putString'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  db_getString: async function (args: any, callback: any) {
-    const api_name = 'db_getString'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  db_putHex: async function (args: any, callback: any) {
-    const api_name = 'db_putHex'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  db_getHex: async function (args: any, callback: any) {
-    const api_name = 'db_getHex'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  shh_version: async function (args: any, callback: any) {
-    const api_name = 'shh_version'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  shh_post: async function (args: any, callback: any) {
-    const api_name = 'shh_post'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  shh_newIdentity: async function (args: any, callback: any) {
-    const api_name = 'shh_newIdentity'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  shh_hasIdentity: async function (args: any, callback: any) {
-    const api_name = 'shh_hasIdentity'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  shh_newGroup: async function (args: any, callback: any) {
-    const api_name = 'shh_newGroup'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  shh_addToGroup: async function (args: any, callback: any) {
-    const api_name = 'shh_addToGroup'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  shh_newFilter: async function (args: any, callback: any) {
-    const api_name = 'shh_newFilter'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  shh_uninstallFilter: async function (args: any, callback: any) {
-    const api_name = 'shh_uninstallFilter'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  shh_getFilterChanges: async function (args: any, callback: any) {
-    const api_name = 'shh_getFilterChanges'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  shh_getMessages: async function (args: any, callback: any) {
-    const api_name = 'shh_getMessages'
-    const ticket = crypto
-      .createHash('sha1')
-      .update(api_name + Math.random() + Date.now())
-      .digest('hex')
-    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-
-    const result = 'test'
-    callback(null, result)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
-  },
-  eth_chainId: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_chainId()` => `String`
+   * @returns ETH Chain ID
+   */
+  eth_chainId: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_chainId'
     const ticket = crypto
       .createHash('sha1')
@@ -1488,9 +1352,15 @@ export const methods = {
     const chainId = `${config.chainId}`
     const hexValue = '0x' + parseInt(chainId, 10).toString(16)
     callback(null, hexValue)
-    logEventEmitter.emit('fn_end', ticket, {success: true}, performance.now())
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_getAccessList: async function (args: any, callback: any) {
+  /**
+   * RPC: 
+   * `eth_getAccessList(Object)` => `String`
+   * @param callObj - Transaction call object
+   * @returns Access list 
+   */
+  eth_getAccessList: async function (args: any[], callback: (err: object | null, res: string | null) => Promise<void>) {
     const api_name = 'eth_getAccessList'
     const ticket = crypto
       .createHash('sha1')
@@ -1506,24 +1376,430 @@ export const methods = {
     }
     console.log('callObj', callObj)
 
-    
+
     let nodeUrl
     try {
       const res = await requestWithRetry(RequestMethod.Post, `/contract/accesslist`, callObj)
       nodeUrl = res.data.nodeUrl
       if (verbose) console.log('contract eth_getAccessList res.data', callObj, res.data.nodeUrl, res.data)
       if (res.data == null || res.data.accessList == null) {
-        logEventEmitter.emit('fn_end', ticket, {success: false}, performance.now())
-        callback(errorBusy)
+        logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+        callback(errorBusy, null)
         return
       }
       if (verbose) console.log('predicted accessList from', res.data.nodeUrl, JSON.stringify(res.data.accessList))
-      logEventEmitter.emit('fn_end', ticket, {nodeUrl,success: true}, performance.now())
+      logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
       callback(null, res.data.accessList)
     } catch (e) {
       console.log(`Error while making an eth call`, e)
-      logEventEmitter.emit('fn_end', ticket, {success: false}, performance.now())
-      callback(errorBusy)
+      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+      callback(errorBusy, null)
     }
   },
+  /*
+  ====================================================================================================================================================
+  ====================================================================================================================================================
+  ========================================================WORK IN PROGRESS - NOT PRODUCTION READY=====================================================
+  ====================================================================================================================================================
+  ====================================================================================================================================================
+  ====================================================================================================================================================
+  */
+
+  eth_getTransactionByBlockHashAndIndex: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_getTransactionByBlockHashAndIndex'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+    if (verbose) {
+      console.log('Running getTransactionByBlockHashAndIndex', args)
+    }
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_getTransactionByBlockNumberAndIndex: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_getTransactionByBlockNumberAndIndex'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+    if (verbose) {
+      console.log('Running getTransactionByBlockNumberAndIndex', args)
+    }
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_getUncleByBlockHashAndIndex: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_getUncleByBlockHashAndIndex'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+    if (verbose) {
+      console.log('Running getUncleByBlockHashAndIndex', args)
+    }
+    const result = null
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_getUncleByBlockNumberAndIndex: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_getUncleByBlockNumberAndIndex'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+    if (verbose) {
+      console.log('Running getUncleByBlockNumberAndIndex', args)
+    }
+    const result = null
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_getCompilers: async function (args: string[], callback: (err: Error | null, res: string[] | null) => Promise<void>) {
+    const api_name = 'eth_getCompilers'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+    if (verbose) {
+      console.log('Running getCompilers', args)
+    }
+    const result = ['solidity', 'lll', 'serpent']
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_compileSolidity: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_compileSolidity'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+    if (verbose) {
+      console.log('Running compileSolidity', args)
+    }
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_compileLLL: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_compileLLL'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_compileSerpent: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_compileSerpent'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_newBlockFilter: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_newBlockFilter'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = '0x1'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_newPendingTransactionFilter: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_newPendingTransactionFilter'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+    if (verbose) {
+      console.log('Running newPendingTransactionFilter', args)
+    }
+    const result = '0x1'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_uninstallFilter: async function (args: string[], callback: (err: Error | null, res: boolean | null) => Promise<void>) {
+    const api_name = 'eth_uninstallFilter'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = true
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_getFilterChanges: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_getFilterChanges'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_getFilterLogs: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_getFilterLogs'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_getLogs: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_getLogs'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+    if (verbose) {
+      console.log('Running getLogs', args)
+    }
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_getWork: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_getWork'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_submitWork: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_submitWork'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  eth_submitHashrate: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'eth_submitHashrate'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  db_putString: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'db_putString'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  db_getString: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'db_getString'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  db_putHex: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'db_putHex'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  db_getHex: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'db_getHex'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  shh_version: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'shh_version'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  shh_post: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'shh_post'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  shh_newIdentity: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'shh_newIdentity'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  shh_hasIdentity: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'shh_hasIdentity'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  shh_newGroup: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'shh_newGroup'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  shh_addToGroup: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'shh_addToGroup'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  shh_newFilter: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'shh_newFilter'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  shh_uninstallFilter: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'shh_uninstallFilter'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  shh_getFilterChanges: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'shh_getFilterChanges'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+  shh_getMessages: async function (args: string[], callback: (err: Error | null, res: string | null) => Promise<void>) {
+    const api_name = 'shh_getMessages'
+    const ticket = crypto
+      .createHash('sha1')
+      .update(api_name + Math.random() + Date.now())
+      .digest('hex')
+    logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
+
+    const result = 'test'
+    callback(null, result)
+    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+  },
+
+  /*
+  ====================================================================================================================================================
+  ====================================================================================================================================================
+  ========================================================WORK IN PROGRESS - NOT PRODUCTION READY=====================================================
+  ====================================================================================================================================================
+  ====================================================================================================================================================
+  ====================================================================================================================================================
+  */
 }

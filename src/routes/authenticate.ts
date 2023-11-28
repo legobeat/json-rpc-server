@@ -4,6 +4,14 @@ export const router = express.Router()
 import {CONFIG} from '../config'
 import { Request, Response } from 'express'
 
+/**
+ * This file contains the routes for authentication.
+ * It handles the authentication process and token verification.
+ */
+
+/**
+ * @route GET /authenticate/:passphrase
+ */ 
 router.route('/:passphrase').get(async function (req: Request, res: Response) {
   const { passphrase } = req.params
   const payload = { user: 'shardeum-dev' }
@@ -21,9 +29,13 @@ router.route('/:passphrase').get(async function (req: Request, res: Response) {
   return res.send({ message: 'wrong passphrase' }).status(400)
 })
 
+/*
+* @route GET /authenticate/token-check/:token
+*/
 router.route('/token-check/:token').get(async function (req: Request, res: Response) {
   const { token } = req.params
 
+  // verify JWT token
   jwt.verify(token, CONFIG.secret_key, (err: any, decoded: any) => {
     if (err) return res.status(401).send({ valid: false })
     return res.send({valid: true}).status(200);

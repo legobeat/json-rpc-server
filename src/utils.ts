@@ -11,6 +11,12 @@ const crypto = require('@shardus/crypto-utils')
 
 crypto.init('69fa4195670576c0160d660c3be36556ff8d504725be8a59b5a96509e0c994bc')
 
+/**
+ * Utility functions for the JSON-RPC server.
+ * This module provides various utility functions used by the JSON-RPC server implementation.
+ * It includes functions for updating the node list, checking the health of archivers, making HTTP requests with retry, parsing transaction objects, and more.
+ */
+
 export const node = {
   ip: 'localhost',
   port: 9001,
@@ -35,7 +41,11 @@ export enum RequestMethod {
   Post = 'post'
 }
 
-// if tryInfinate value is true, it'll keep pinging the archiver unitl it responds infinitely, this is useful for first time updating NodeList
+/**
+ * Updates the node list by querying the archiver server.
+ * @param tryInfinate - Optional parameter indicating whether to infinitely retry or not. This is useful for first time updating NodeList
+ * @returns A promise that resolves once the node list is updated.
+ */
 export async function updateNodeList(tryInfinate = false) {
   if (!healthyArchivers.length) await checkArchiverHealth()
 
@@ -95,6 +105,10 @@ export async function updateNodeList(tryInfinate = false) {
   console.timeEnd('nodelist_update')
 }
 
+/**
+ * Checks the health of archivers.
+ * @returns {Promise<void>} A promise that resolves when the health check is complete.
+ */
 export async function checkArchiverHealth() {
   console.info('\n====> Checking Health of Archivers <====')
   const archiverData: ArchiverStat[] = await getArchiverStats()
@@ -103,6 +117,10 @@ export async function checkArchiverHealth() {
   console.log(`-->> ${healthyArchivers.length} Healthy Archivers active in the Network <<--`)
 }
 
+/**
+ * Retrieves the statistics of archivers.
+ * @returns A promise that resolves to an array of ArchiverStat objects.
+ */
 async function getArchiverStats(): Promise<ArchiverStat[]> {
   const counters = config.existingArchivers.map(async (url) => {
     try {
@@ -122,6 +140,10 @@ async function getArchiverStats(): Promise<ArchiverStat[]> {
   return Promise.all(counters)
 }
 
+/**
+ * Waits for a random number of seconds between 1 and 5.
+ * @returns {Promise<void>} A promise that resolves after the specified number of seconds.
+ */
 export async function waitRandomSecond() {
   const second = Math.floor(Math.random() * 5) + 1
   console.log(`Waiting ${second} second`)
@@ -130,6 +152,15 @@ export async function waitRandomSecond() {
 }
 
 // nRetry negative number will retry infinitely
+/**
+ * Makes a request with retry logic.
+ * @param method - The request method.
+ * @param route - The route to send the request to.
+ * @param data - The data to send with the request.
+ * @param nRetry - The number of times to retry the request. If negative, it will retry infinitely
+ * @param isFullUrl - Indicates whether the route is a full URL or not.
+ * @returns A Promise that resolves to the response of the request.
+ */
 export async function requestWithRetry(
   method: RequestMethod,
   route: string,
@@ -176,6 +207,12 @@ export async function requestWithRetry(
   return { data: { nodeUrl } }
 }
 
+/**
+ * Retrieves the transaction object from the provided transaction data.
+ * @param tx - The transaction data.
+ * @returns The transaction object.
+ * @throws Error if the transaction object cannot be obtained.
+ */
 export function getTransactionObj(tx: any): any {
   if (!tx.raw) throw Error('No raw tx found.')
   let transactionObj
@@ -212,12 +249,22 @@ export function getArchiverUrl() {
   return getNextArchiver()
 }
 
+/**
+ * Changes the IP address and port of the node.
+ * 
+ * @param ip The new IP address to set.
+ * @param port The new port number to set.
+ */
 export function changeNode(ip: string, port: number) {
   node.ip = ip
   node.port = port
   if (verbose) console.log(`RPC server subscribes to ${ip}:${port}`)
 }
 
+/**
+ * Rotates the consensor node by selecting the next available node.
+ * If the `config.useConfigNodeIp` flag is set to `true`, the node's IP will be overridden with the config node's external IP.
+ */
 function rotateConsensorNode() {
   const consensor: any = getNextConsensorNode() //getRandomConsensorNode()
   if (consensor) {
@@ -240,7 +287,13 @@ function rotateConsensorNode() {
 //     }
 // }
 
-// this is the main function to be called every RPC request
+
+/**
+ * Sets the consensus node based on the configuration.
+ * If `config.dynamicConsensorNode` is true, it rotates the consensus node.
+ * Otherwise, it changes the node to the specified `externalIp` and `externalPort` from the configuration.
+ * This function is called for every RPC request.
+ */
 export function setConsensorNode() {
   if (config.dynamicConsensorNode) {
     rotateConsensorNode()
@@ -249,6 +302,10 @@ export function setConsensorNode() {
   }
 }
 
+/**
+ * Returns a random consensus node from the nodeList.
+ * @returns A random consensus node from the nodeList, or undefined if the nodeList is empty.
+ */
 export function getRandomConsensorNode() {
   if (nodeList.length > 0) {
     const randomIndex = Math.floor(Math.random() * nodeList.length)
@@ -256,9 +313,10 @@ export function getRandomConsensorNode() {
   }
 }
 
+
 /**
- * Round robin selection of next consensor index.
- * @returns
+ * Retrieves the next consensus node from the list of nodes in a Round Robin selection.
+ * @returns The next consensus node.
  */
 export function getNextConsensorNode() {
   if (nodeList.length > 0) {
@@ -270,6 +328,11 @@ export function getNextConsensorNode() {
   }
 }
 
+/**
+ * Retrieves the next available archiver from the list of healthy archivers.
+ * If there are no healthy archivers, the server terminates.
+ * @returns The next available archiver's URL, IP, and port.
+ */
 function getNextArchiver() {
   if (healthyArchivers.length > 0) {
     if (archiverIndex === healthyArchivers.length) {
@@ -285,6 +348,11 @@ function getNextArchiver() {
   }
 }
 
+/**
+ * Suspends the execution of the current function for a specified number of milliseconds.
+ * @param ms - The number of milliseconds to sleep.
+ * @returns A Promise that resolves to true after the specified number of milliseconds.
+ */
 export function sleep(ms: number) {
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -293,9 +361,14 @@ export function sleep(ms: number) {
   })
 }
 
-export async function getAccount(addressStr: any): Promise<{account?: any, nodeUrl: string}> {
-   const res = await requestWithRetry(RequestMethod.Get, `/account/${addressStr}`)
-   return res.data
+/**
+ * Retrieves the account information for a given address.
+ * @param addressStr - The address of the account.
+ * @returns A promise that resolves to an object containing the account information and the node URL.
+ */
+export async function getAccount(addressStr: any): Promise<{ account?: any, nodeUrl: string }> {
+  const res = await requestWithRetry(RequestMethod.Get, `/account/${addressStr}`)
+  return res.data
 }
 
 export class RequestersList {
@@ -335,6 +408,10 @@ export class RequestersList {
     }
   }
 
+  /**
+   * Adds an IP address to the blacklist.
+   * @param ip The IP address to be added to the blacklist.
+   */
   addToBlacklist(ip: string) {
     this.bannedIps.push({ ip, timestamp: Date.now() })
     fs.readFile('blacklist.json', function (err: NodeJS.ErrnoException | null, currentDataStr: Buffer): void {
@@ -346,6 +423,12 @@ export class RequestersList {
     })
   }
 
+  /**
+   * Adds the specified address to the blacklist of senders.
+   * 
+   * @param address - The address to be added to the blacklist.
+   * @returns void
+   */
   addSenderToBacklist(address: string) {
     this.blackListedSenders.add(address.toLowerCase())
     fs.readFile('spammerlist.json', function (err: NodeJS.ErrnoException | null, currentDataStr: Buffer): void {
@@ -357,10 +440,19 @@ export class RequestersList {
     })
   }
 
+  /**
+   * Checks if the specified address is blacklisted.
+   * 
+   * @param address - The address to check.
+   * @returns True if the address is blacklisted, false otherwise.
+   */
   isSenderBlacklisted(address: string) {
     return this.blackListedSenders.has(address.toLowerCase())
   }
 
+  /**
+   * Clears old IP addresses and request history.
+   */
   clearOldIps() {
     /* eslint-disable security/detect-object-injection */
     const now = Date.now()
@@ -394,6 +486,13 @@ export class RequestersList {
     /* eslint-enable security/detect-object-injection */
   }
 
+  /**
+   * Checks and bans spammers based on various criteria.
+   * This function logs and cleans successful requests, all requests, total injected transactions by IP,
+   * abused contract addresses, and most abused sender addresses.
+   * It also adds spammers to the blacklist if they exceed the allowed transaction rate.
+   * @returns {void}
+   */
   checkAndBanSpammers() {
     // log and clean successful requests
     let records = Object.values(this.requestTracker)
@@ -473,6 +572,10 @@ export class RequestersList {
     this.abusedToAddresses = new Map()
   }
 
+  /**
+   * Adds a heavy request to the request tracker, total transaction tracker, and heavy requests map.
+   * @param ip The IP address of the request.
+   */
   addHeavyRequest(ip: string) {
     /*eslint-disable security/detect-object-injection */
     if (this.requestTracker[ip]) {
@@ -494,6 +597,13 @@ export class RequestersList {
     /* eslint-enable security/detect-object-injection */
   }
 
+  /**
+   * Adds an address to the heavyAddresses map.
+   * If the address already exists in the map, the current timestamp is pushed to its history.
+   * If the address does not exist in the map, a new entry is created with the current timestamp.
+   * 
+   * @param address - The address to be added.
+   */
   addHeavyAddress(address: string) {
     if (this.heavyAddresses.get(address)) {
       const reqHistory = this.heavyAddresses.get(address)
@@ -503,6 +613,10 @@ export class RequestersList {
     }
   }
 
+  /**
+   * Adds an abused sender to the list of abused senders.
+   * @param address - The address of the abused sender.
+   */
   addAbusedSender(address: string) {
     /*eslint-disable security/detect-object-injection */
     console.log('adding abused sender', address)
@@ -518,6 +632,12 @@ export class RequestersList {
     /*eslint-enable security/detect-object-injection */
   }
 
+  /**
+   * Adds an abused address to the list of abused addresses.
+   * @param toAddress - The address being abused.
+   * @param fromAddress - The address from which the abuse is originating.
+   * @param ip - The IP address associated with the abuse.
+   */
   addAbusedAddress(toAddress: string, fromAddress: string, ip: string) {
     /*eslint-disable security/detect-object-injection */
     if (this.abusedToAddresses[toAddress]) {
@@ -563,6 +683,10 @@ export class RequestersList {
     /*eslint-enable security/detect-object-injection */
   }
 
+  /**
+   * Adds a request to the allRequestTracker object.
+   * @param ip The IP address of the request.
+   */
   addAllRequest(ip: string) {
     /*eslint-disable security/detect-object-injection */
     if (this.allRequestTracker[ip]) {
@@ -573,6 +697,11 @@ export class RequestersList {
     /*eslint-enable security/detect-object-injection */
   }
 
+  /**
+   * Checks if an IP address is banned.
+   * @param ip - The IP address to check.
+   * @returns True if the IP address is banned, false otherwise.
+   */
   isIpBanned(ip: string) {
     if (config.rateLimit && config.rateLimitOption.banIpAddress) {
       const bannedIpList = this.bannedIps.map((data) => data.ip)
@@ -583,6 +712,11 @@ export class RequestersList {
     }
   }
 
+  /**
+   * Checks if the given request type is a query type.
+   * @param reqType - The request type to check.
+   * @returns True if the request type is a query type, false otherwise.
+   */
   isQueryType(reqType: string) {
     try {
       const heavyTypes = ['eth_sendRawTransaction', 'eth_sendTransaction']
@@ -597,6 +731,12 @@ export class RequestersList {
     }
   }
 
+  /**
+   * Checks the faucet account for the given address.
+   * @param address - The address to check.
+   * @param allowPlatform - The platform to allow. Defaults to null.
+   * @returns A boolean indicating whether the faucet account is valid or not.
+   */
   async checkFaucetAccount(address: string, allowPlatform: string | null = null) {
     try {
       const url = `${config.faucetServerUrl}/faucet-claims/count?address=${address}&groupBy=platform`
@@ -611,6 +751,13 @@ export class RequestersList {
     }
   }
 
+  /**
+   * Checks if the request is okay based on various conditions.
+   * @param ip - The IP address of the request.
+   * @param reqType - The type of the request.
+   * @param reqParams - The parameters of the request.
+   * @returns A Promise that resolves to a boolean indicating if the request is okay.
+   */
   async isRequestOkay(ip: string, reqType: string, reqParams: any[]): Promise<boolean> {
     const now = Date.now()
     const oneMinute = 60 * 1000
@@ -649,7 +796,7 @@ export class RequestersList {
     let transaction
     try {
       if (reqType === 'eth_sendRawTransaction') transaction = getTransactionObj({ raw: reqParams[0] })
-    } catch (e) {}
+    } catch (e) { }
 
     if (heavyReqHistory && heavyReqHistory.length >= config.rateLimitOption.allowedHeavyRequestPerMin) {
       if (
@@ -763,6 +910,13 @@ export class RequestersList {
   }
 }
 
+/**
+ * Hashes a signed object.
+ * If the object has a "sign" property, it hashes the object with the "sign" property set to true.
+ * Otherwise, it hashes the object without modifying it.
+ * @param obj - The object to be hashed.
+ * @returns The hashed object.
+ */
 export function hashSignedObj(obj: any) {
   if (!obj.sign) {
     return crypto.hashObj(obj)
@@ -770,10 +924,20 @@ export function hashSignedObj(obj: any) {
   return crypto.hashObj(obj, true)
 }
 
+/**
+ * Calculates the internal transaction hash.
+ * @param tx - The transaction object.
+ * @returns The internal transaction hash.
+ */
 export function calculateInternalTxHash(tx: any) {
   return '0x' + hashSignedObj(tx)
 }
 
+/**
+ * Retrieves the transaction receipt for a given transaction hash.
+ * @param hash - The transaction hash.
+ * @returns The transaction receipt, or null if not found.
+ */
 export async function getTransactionReceipt(hash: string) {
   const txHash = hash
   const res = await requestWithRetry(RequestMethod.Get, `/tx/${txHash}`)
@@ -793,6 +957,11 @@ export enum TxStatusCode {
   BUSY = 2,
   OTHER_FAILURE = 3,
 }
+/**
+ * Retrieves the corresponding status code based on the given reason.
+ * @param reason - The reason for the status code.
+ * @returns The status code associated with the reason, or `TxStatusCode.OTHER_FAILURE` if no matching reason is found.
+ */
 export function getReasonEnumCode(reason: string) {
   const _REASONS = new Map()
   _REASONS.set('Maximum load exceeded.'.toLowerCase(), TxStatusCode.BUSY)

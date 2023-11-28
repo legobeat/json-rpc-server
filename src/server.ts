@@ -23,6 +23,11 @@ import blackList from '../blacklist.json'
 import spammerList from '../spammerlist.json'
 import path from 'path'
 
+/**
+ * This file contains the main server code for the JSON-RPC server.
+ * It sets up the server, handles routes, and initializes necessary middleware and configurations.
+ */
+
 // const path = require('path');
 // var whitelist = ['http://example1.com', 'http://example2.com']
 // var corsOptions = {
@@ -34,11 +39,14 @@ import path from 'path'
 //     }
 //   }
 // }
+
+// initialize the server
 const app = express()
 const server = new jayson.Server(methods)
 let port = config.port //8080
 const chainId = config.chainId //8080
 
+// parse port from args
 const myArgs = process.argv.slice(2)
 if (myArgs.length > 0) {
   port = parseInt(myArgs[0])
@@ -55,9 +63,13 @@ process.on('unhandledRejection', (err) => {
 })
 
 app.set('trust proxy', true)
+
+// add configurations to the server
 app.use(cors({ methods: ['POST'] }))
 app.use(express.json())
 app.use(cookieParser())
+
+
 
 if(config.dashboard.enabled && config.dashboard.dist_path){
   const clientDirectory = config.dashboard.dist_path[0] === '/' ? 
@@ -67,13 +79,21 @@ if(config.dashboard.enabled && config.dashboard.dist_path){
   app.set('views', clientDirectory);
   app.use('/static',express.static(staticDirectory));
   // app.set('views', clientDirectory);
+
+  /**
+   * @route GET /dashboard
+   */
   app.get('/dashboard', function (req, res) {
     return res.sendFile(path.join(clientDirectory,'index.html'));
   });
 }
 
+/**
+ * @route GET /api/subscribe
+ */
 app.get('/api/subscribe', (req: Request, res: Response) => {
   const query = req.query
+  // makes sure the ip and port are valid
   if (!query || !req.ip || !query.port) {
     console.log('Invalid ip or port')
     return res.end('Invalid ip or port')
@@ -84,18 +104,22 @@ app.get('/api/subscribe', (req: Request, res: Response) => {
   res.end(`Successfully changed to ${ip}:${port}`)
 })
 
+/**
+ * @route GET /api/health
+ */
 app.get('/api/health', (req: Request, res: Response) => {
   return res.json({ healthy: true }).status(200)
 })
 
 const requestersList = new RequestersList(blackList, spammerList)
 
+// add custom middleware for the rate limit of requests
 app.use(async (req: Request, res: Response, next: NextFunction) => {
   if (!config.rateLimit) {
     next()
     return
   }
-  let ip = req.ip
+  let ip = req.ip || 'localhost'
   if (ip.substr(0, 7) == '::ffff:') {
     ip = ip.substr(7)
   }
@@ -117,9 +141,12 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
   next()
 })
 
+// add log and authenticate routes
 app.use('/log', authorize, logRoute)
 app.use('/authenticate', authenticate)
 app.use(injectIP)
+
+// add jayson middleware
 app.use(server.middleware())
 
 
@@ -130,6 +157,8 @@ updateNodeList(true).then(() => {
   setInterval(updateNodeList, config.nodelistRefreshInterval)
   setInterval(saveTxStatus, 5000)
   setInterval(checkArchiverHealth, 60000)
+
+  // start the server
   app.listen(port, function() {
     console.log(`JSON RPC Server listening on port ${port} and chainId is ${chainId}.`)
     setupDatabase()

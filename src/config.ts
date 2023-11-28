@@ -55,6 +55,10 @@ type Config = {
   }
 }
 
+/**
+ * Configuration object for the server.
+ * Holds various settings and options for the server.
+ */
 export const CONFIG: Config = {
   port: 8080,
   chainId: 8082,
