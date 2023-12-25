@@ -230,7 +230,7 @@ class Collector extends BaseExternal {
   }
 
   async fetchAccount(accountId: string) {
-    const apiQuery = `${this.baseUrl}/api/address?accountId=${accountId}`
+    const apiQuery = `${this.baseUrl}/api/account?accountId=${accountId}`
       const response = await axios.get(apiQuery).then((response) => {
         if (!response) {
           throw new Error('Failed to fetch transaction')
