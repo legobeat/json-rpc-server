@@ -13,6 +13,7 @@ import {
 import { bufferToHex, toBuffer } from 'ethereumjs-util'
 
 class Collector extends BaseExternal {
+  
   constructor(baseURL: string) {
     super(baseURL, 3, {
       'Content-Type': 'application/json',
@@ -181,7 +182,7 @@ class Collector extends BaseExternal {
     }
   }
 
-  async fetchAccount(key: string, timestamp: number): Promise<{ accountId: any; data: any } | null> {
+  async fetchTxHistory(key: string, timestamp: number): Promise<{ accountId: any; data: any } | null> {
     if (!CONFIG.collectorSourcing.enabled) return null
 
     /* prettier-ignore */ console.log(`Collector: fetchAccount call for key: ${key}`)
@@ -226,6 +227,16 @@ class Collector extends BaseExternal {
     }
 
     return null
+  }
+
+  async fetchAccount(accountId: string) {
+    const apiQuery = `${this.baseUrl}/api/address?accountId=${accountId}`
+      const response = await axios.get(apiQuery).then((response) => {
+        if (!response) {
+          throw new Error('Failed to fetch transaction')
+        } else return response
+      })
+      return response
   }
 
   buildLogAPIUrl(request: any, baseDomain = CONFIG.explorerUrl): string {
