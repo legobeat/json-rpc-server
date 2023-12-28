@@ -1,6 +1,6 @@
 import WebSocket from 'ws'
 
-type subscription_details = {
+export type subscription_details = {
   address: string | string[]
   topics: string[]
 }
@@ -22,22 +22,25 @@ class ClientList {
     this.removeById = this.removeById.bind(this)
   }
 
-  getAll() {
+  getAll(): {
+    indexedById: Map<string, { socket: WebSocket.WebSocket; subscription_data: subscription_details }>
+    indexedBySocket: Map<WebSocket.WebSocket, Set<string>>
+  } {
     return { indexedById: this.list, indexedBySocket: this.indexedBySocket }
   }
 
-  getById(id: string) {
+  getById(id: string): { socket: WebSocket.WebSocket; subscription_data: subscription_details } | null {
     if (!this.list.has(id)) {
       return null
     }
-    return this.list.get(id)
+    return this.list.get(id) ?? null
   }
 
-  getBySocket(socket: WebSocket.WebSocket) {
+  getBySocket(socket: WebSocket.WebSocket): Set<string> | null {
     if (!this.indexedBySocket.has(socket)) {
       return null
     }
-    return this.indexedBySocket.get(socket)
+    return this.indexedBySocket.get(socket) ?? null
   }
 
   set(
@@ -45,7 +48,7 @@ class ClientList {
     socket: WebSocket.WebSocket,
     subscription_data: subscription_details,
     rpc_request_id: number
-  ) {
+  ): void {
     this.requestIdBySubscriptionId.set(id, rpc_request_id)
     this.list.set(id, { socket, subscription_data })
     if (this.indexedBySocket.has(socket)) {
@@ -54,7 +57,7 @@ class ClientList {
     }
     this.indexedBySocket.set(socket, new Set([id]))
   }
-  removeById(id: string) {
+  removeById(id: string): void {
     this.requestIdBySubscriptionId.delete(id)
     if (this.list.has(id)) {
       const socket = this.list.get(id)?.socket
@@ -65,7 +68,7 @@ class ClientList {
       this.list.delete(id)
     }
   }
-  removeBySocket(socket: WebSocket.WebSocket) {
+  removeBySocket(socket: WebSocket.WebSocket): void {
     if (!this.indexedBySocket.has(socket)) return
 
     const subscriptions = this.indexedBySocket.get(socket)

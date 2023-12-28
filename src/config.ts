@@ -86,7 +86,7 @@ type Config = {
 
 export const CONFIG: Config = {
   websocket: {
-    enabled: Boolean(process.env.WS_ENABLED) || false,
+    enabled: true,
     serveSubscriptions: Boolean(process.env.WS_SAVE_SUBSCRIPTIONS) || false,
   },
   log_server: {
