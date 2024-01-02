@@ -1174,18 +1174,16 @@ async function fetchLatestAccount(key: string, type: number) {
 }
 
 async function fetchLatestAccountFromCollector(account: { shardusKey: string; type: number; key: string }){
-  console.log("We've reached the collector section", account.type)
+  
   const query = account.type==2?account.key.slice(2):account.shardusKey
   const res = await collectorAPI.fetchAccount(query)
-  console.log("Here is the response", res.data.accounts)
   // Check if the response contains account data
       if (!res || !res.data || !res.data.accounts) {
-        console.log("No data found")
+        if(verbose) console.log("No data found in collector section")
         // No account data found
         return undefined
       } else {
         // Account data found, return the required information
-        console.log("yes baby", account)
         return { accountId: account.shardusKey, data: res.data.accounts[0].account }
       }
 }
@@ -1280,8 +1278,8 @@ export async function replayGas(tx: { from: string; gas: string } & TxData) {
     txData,
   }
 
-  const replayPath = "C:\\work\\dev\\graph-node-work\\server\\dist\\src\\debug\\replayTX.js"
-  const transactionsFolder = '../transactions'
+  const replayPath = path.join(__dirname, '../../../validator/dist/src/debug/replayTX.js')
+  const transactionsFolder = path.join(__dirname, '../../transactions')
 
   // Check if replay script exists
   if (!fs.existsSync(replayPath)) {
@@ -1324,8 +1322,6 @@ export async function replayGas(tx: { from: string; gas: string } & TxData) {
       return stdout.split('\n').slice(0, 2)
     }
 
-    console.log("The stdout is", stdout)
-
     // Split stdout into lines
     stdout
       .split('\n')
@@ -1333,8 +1329,6 @@ export async function replayGas(tx: { from: string; gas: string } & TxData) {
       .forEach((line: string) => {
         missingData.push(JSON.parse(line))
       })
-
-    console.log("missing data is ", missingData)
 
     // Download missing data
     let downloadedAccount = await fetchLatestAccountFromCollector(
@@ -1344,7 +1338,7 @@ export async function replayGas(tx: { from: string; gas: string } & TxData) {
     // console.log("the downloaded is", missingData[0].key, missingData[0].shardusKey, downloadedAccount)
     
     if(!downloadedAccount) {
-      console.log("We are fetching from the archiver and not collector")
+      if(verbose) console.log("We are fetching from the archiver and not collector")
       downloadedAccount = await fetchLatestAccount(missingData[0].shardusKey, missingData[0].type)
     }
 
@@ -1363,8 +1357,8 @@ export async function replayGas(tx: { from: string; gas: string } & TxData) {
 }
 
 export async function replayTransaction(txHash: string, flag: string) {
-  const replayPath = "C:\\work\\dev\\graph-node-work\\server\\dist\\src\\debug\\replayTX.js"
-  const transactionsFolder = '../transactions'
+  const replayPath = path.join(__dirname, '../../../validator/dist/src/debug/replayTX.js')
+  const transactionsFolder = path.join(__dirname, '../../transactions')
 
   // Check if replay already exists
   if (fs.existsSync(path.join(transactionsFolder, txHash + '_states.json'))) {
@@ -1422,8 +1416,6 @@ export async function replayTransaction(txHash: string, flag: string) {
       reject: false,
     })
 
-    console.log("This is from debug_trace",stdout)
-
     if (stdout.trim() === 'Done') {
       break
     }
@@ -1436,7 +1428,6 @@ export async function replayTransaction(txHash: string, flag: string) {
         missingData.push(JSON.parse(line))
       })
 
-      console.log("The stdout is", stdout)
 
     // Download missing data
        let downloadedAccount 
@@ -1447,6 +1438,7 @@ export async function replayTransaction(txHash: string, flag: string) {
 
     if (!downloadedAccount) {
       // this fetches data from the archiver or the explorer in case the collector fails
+      if(verbose) console.log("We are fetching from the archiver and not collector")
       downloadedAccount = await fetchAccount(
         { key: missingData[0].shardusKey, type: missingData[0].type },
         receipt.timestamp
