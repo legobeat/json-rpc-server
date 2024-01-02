@@ -1173,6 +1173,23 @@ async function fetchLatestAccount(key: string, type: number) {
   }
 }
 
+async function fetchLatestAccountFromCollector(account: { shardusKey: string; type: number; key: string }){
+  console.log("We've reached the collector section", account.type)
+  const query = account.type==2?account.key.slice(2):account.shardusKey
+  const res = await collectorAPI.fetchAccount(query)
+  console.log("Here is the response", res.data.accounts)
+  // Check if the response contains account data
+      if (!res || !res.data || !res.data.accounts) {
+        console.log("No data found")
+        // No account data found
+        return undefined
+      } else {
+        // Account data found, return the required information
+        console.log("yes baby", account)
+        return { accountId: account.shardusKey, data: res.data.accounts[0].account }
+      }
+}
+
 async function fetchAccountFromCollector( account: { shardusKey: string; type: number; key: string }, timestamp: number) {
 
     const { shardusKey, type, key } = account
@@ -1290,7 +1307,8 @@ export async function replayGas(tx: { from: string; gas: string } & TxData) {
     const missingData: {
       status: string
       type: number
-      shardusKey: string
+      shardusKey: string 
+      key : string
     }[] = []
     const { stdout, stderr } = await execa(
       'node',
@@ -1306,6 +1324,8 @@ export async function replayGas(tx: { from: string; gas: string } & TxData) {
       return stdout.split('\n').slice(0, 2)
     }
 
+    console.log("The stdout is", stdout)
+
     // Split stdout into lines
     stdout
       .split('\n')
@@ -1314,8 +1334,19 @@ export async function replayGas(tx: { from: string; gas: string } & TxData) {
         missingData.push(JSON.parse(line))
       })
 
+    console.log("missing data is ", missingData)
+
     // Download missing data
-    const downloadedAccount = await fetchLatestAccount(missingData[0].shardusKey, missingData[0].type)
+    let downloadedAccount = await fetchLatestAccountFromCollector(
+      { shardusKey: missingData[0].shardusKey, type: missingData[0].type, key :missingData[0].key}
+    )
+
+    // console.log("the downloaded is", missingData[0].key, missingData[0].shardusKey, downloadedAccount)
+    
+    if(!downloadedAccount) {
+      console.log("We are fetching from the archiver and not collector")
+      downloadedAccount = await fetchLatestAccount(missingData[0].shardusKey, missingData[0].type)
+    }
 
     if (!downloadedAccount) {
       throw new Error('Account not found')
@@ -1391,6 +1422,8 @@ export async function replayTransaction(txHash: string, flag: string) {
       reject: false,
     })
 
+    console.log("This is from debug_trace",stdout)
+
     if (stdout.trim() === 'Done') {
       break
     }
@@ -1402,6 +1435,8 @@ export async function replayTransaction(txHash: string, flag: string) {
       .forEach((line: string) => {
         missingData.push(JSON.parse(line))
       })
+
+      console.log("The stdout is", stdout)
 
     // Download missing data
        let downloadedAccount 
