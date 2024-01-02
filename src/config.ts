@@ -115,7 +115,7 @@ export const CONFIG: Config = {
   gasEstimateMethod: 'replayEngine', //serviceValidator or replayEngine or validator
   gasEstimateInvalidationIntervalInMs: 1000 * 60 * 60 * 2, // 2 hours
   gasEstimateUseCache: false,
-  // staticGasEstimate: '0x5B8D80', // comment out rather than delete this line
+  staticGasEstimate: '0x5B8D80', // comment out rather than delete this line
   defaultRequestTimeout: {
     default: 2000,
     contract: 7000,
@@ -151,11 +151,11 @@ export const CONFIG: Config = {
   isRemoteLocalNetwork: false,
   nodeExternalIpForRemoteLocalNetwork: '127.0.0.1',
   collectorSourcing: {
-    enabled: true,
+    enabled: false,
     collectorApiServerUrl: 'http://0.0.0.0:6001',
   },
   serviceValidatorSourcing: {
     enabled: false,
-    serviceValidatorUrl: 'http://0.0.0.0:9201',
+    serviceValidatorUrl: 'http://0.0.0.0:9001',
   },
 }

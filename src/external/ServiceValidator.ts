@@ -37,7 +37,7 @@ class ServiceValidator extends BaseExternal {
     /* prettier-ignore */ if (verbose) console.log(`ServiceValidator: getAccount call for address: ${address}`)
     const requestConfig: AxiosRequestConfig = {
       method: 'get',
-      url: `0.0.0.0:9201/account/${address}`,
+      url: `${this.baseUrl}/account/${address}`,
       headers: this.defaultHeaders,
     }
     /* prettier-ignore */ if (verbose) console.log(`ServiceValidator: getAccount requestConfig: ${JSON.stringify(requestConfig)}`)
@@ -113,8 +113,6 @@ class ServiceValidator extends BaseExternal {
     try {
       const res = await axiosWithRetry<{ estimateGas: string }>(requestConfig)
       /* prettier-ignore */ if (verbose) console.log(`ServiceValidator: estimateGas res: ${JSON.stringify(res.data)}`)
-      console.log("The response from the service validator is", JSON.stringify(res.data))
-      console.log(`the base url is ${this.baseUrl}`)
       return res.data.estimateGas
     } catch (e) {
       console.error(`ServiceValidator: Error estimating gas`, e)

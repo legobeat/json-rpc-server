@@ -1299,7 +1299,6 @@ export const methods = {
 
     let result = '0x2DC6C0' // 3 M gas
     try {
-      console.log("The args are", args[0])
       if (!args[0]['to'] && !args[0]['data']) {
         callback(null, result)
         return
@@ -1331,7 +1330,6 @@ export const methods = {
         callback(null, result)
         return
       }
-      console.log("The method to use gas estimate is", config.gasEstimateMethod)
       let originalEstimate = new BN(0)
       if (config.gasEstimateMethod === 'replayEngine') {
         const replayOutput = await replayGas(args[0])
