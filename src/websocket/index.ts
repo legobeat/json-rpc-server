@@ -8,7 +8,6 @@ import { ipport } from '../server'
 import { evmLogProvider_ConnectionStream } from './log_server'
 import { subscription_details } from './clients'
 
-
 interface Params {
   address?: string | string[]
   topics?: (string | undefined)[]

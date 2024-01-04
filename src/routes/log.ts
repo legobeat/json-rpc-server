@@ -39,16 +39,16 @@ interface QueryParams {
 }
 
 type CustomRequest = Request & {
-  query: QueryParams;
+  query: QueryParams
 }
 
 interface Data {
-  current?: number;
-  length: number;
-  max?: number;
-  prev?: number;
-  next?: number;
-  data?: unknown[];
+  current?: number
+  length: number
+  max?: number
+  prev?: number
+  next?: number
+  data?: unknown[]
 }
 
 const prepareSQLFilters = ({
@@ -242,7 +242,7 @@ router.route('/txs').get(async function (req: Request, res: Response) {
     const max = Number(req.query.max) || 1000
     const cursor: number = page * max
     const start = req.query.start ? timeInputProcessor(req.query.start as string) : null
-const end = req.query.end ? timeInputProcessor(req.query.end as string) : null
+    const end = req.query.end ? timeInputProcessor(req.query.end as string) : null
 
     if (start && !end) {
       const tx = db.prepare(`SELECT * FROM transactions WHERE timestamp>${start} LIMIT 1`).all()
@@ -319,9 +319,9 @@ router.route('/cleanTxTable').get(async function (req: Request, res: Response) {
     res.send({ success: true }).status(200)
   } catch (e: unknown) {
     if (e instanceof Error) {
-      res.send(e.message).status(500);
+      res.send(e.message).status(500)
     } else {
-      res.send('An unexpected error occurred').status(500);
+      res.send('An unexpected error occurred').status(500)
     }
   }
 })
