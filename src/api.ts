@@ -70,7 +70,7 @@ type InjectResponse = {
 
 export type TxStatus = {
   txHash: string
-  raw: string
+  raw?: string
   injected: boolean
   accepted: boolean
   reason: string
@@ -85,7 +85,7 @@ export type DetailedTxStatus = {
   to: string
   from: string
   injected: boolean
-  accepted: TxStatusCode.BAD_TX | TxStatusCode.SUCCESS | TxStatusCode.BUSY | TxStatusCode.OTHER_FAILURE
+  accepted: TxStatusCode.BAD_TX | TxStatusCode.SUCCESS | TxStatusCode.BUSY | TxStatusCode.OTHER_FAILURE | boolean
   reason: string
   timestamp: string
   nodeUrl?: string

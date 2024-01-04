@@ -154,10 +154,14 @@ export async function waitRandomSecond(): Promise<void> {
   await sleep(200)
 }
 
-function getTimeout(route: string): number {
-  const root = route.split('//')[1] ? route.split('//')[1].split('/')[1].split('?')[0] : null
-  // eslint-disable-next-line security/detect-object-injection
-  if (root && config.defaultRequestTimeout[root]) return config.defaultRequestTimeout[root]
+// TODO: check what happens if theres no type assertion
+function getTimeout(route: string) {
+  let root = route.split('//')[1] ? route.split('//')[1].split('/')[1].split('?')[0] : null
+  // If 'root' exists and is a key in 'config.defaultRequestTimeout', return its corresponding value.
+  // The type assertion ensures 'root' is treated as a key of 'config.defaultRequestTimeout' for TypeScript.
+  if (root && 'defaultRequestTimeout' in config && root in config.defaultRequestTimeout) {
+    return config.defaultRequestTimeout[root as keyof typeof config.defaultRequestTimeout]
+  }
   if (route.includes('full-nodelist')) return config.defaultRequestTimeout['full_nodelist']
   return config.defaultRequestTimeout[`default`]
 }

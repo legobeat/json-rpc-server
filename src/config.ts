@@ -1,3 +1,5 @@
+import { RequestTimeout } from './types'
+
 type Config = {
   // set ip to be public exposed address
   // so that rpc could let explorer know about its ip
@@ -29,7 +31,7 @@ type Config = {
   generateTxTimestamp: boolean
   nodelistRefreshInterval: number
   defaultRequestRetry: number
-  defaultRequestTimeout: any
+  defaultRequestTimeout: RequestTimeout
   recordTxStatus: boolean
   rateLimit: boolean
   staticGasEstimate?: string

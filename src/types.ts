@@ -370,3 +370,10 @@ export type Account2 = {
   codeHash: string
   operatorAccountInfo: unknown
 }
+
+export type RequestTimeout = {
+  default: number
+  contract: number
+  account: number
+  full_nodelist: number
+}
