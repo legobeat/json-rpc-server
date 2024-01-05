@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosResponse } from 'axios'
+import axios, { AxiosError } from 'axios'
 import WebSocket from 'ws'
 import { serializeError } from 'eth-rpc-errors'
 import { BN, bufferToHex, isHexPrefixed, isHexString, isValidAddress, keccak256 } from 'ethereumjs-util'
@@ -35,6 +35,7 @@ import * as Types from './types'
 import { addEntry, checkEntry, getGasEstimate, removeEntry } from './service/gasEstimate'
 import { collectorAPI } from './external/Collector'
 import { serviceValidator } from './external/ServiceValidator'
+import { JSONRPCCallbackTypePlain, RequestParamsLike } from 'jayson'
 
 export const verbose = config.verbose
 const MAX_ESTIMATE_GAS = new BN(30_000_000)
@@ -50,8 +51,12 @@ const errorCode = 500 //server internal error
 const errorBusy = { code: errorCode, message: 'Busy or error' }
 export let txStatuses: TxStatus[] = []
 const maxTxCountToStore = 10000
-const txMemPool: any = {}
-const nonceTracker: any = {}
+const txMemPool: {
+  [key: string]: object
+} = {}
+const nonceTracker: {
+  [key: string]: number
+} = {}
 let totalResult = 0
 let nonceFailCount = 0
 
@@ -84,20 +89,76 @@ export type DetailedTxStatus = {
   nodeUrl?: string
 }
 
-function hexStrToInt(hexStr: string) {
+function hexStrToInt(hexStr: string): number {
   return parseInt(hexStr.slice(2), 16)
 }
 
-function isHex(str: string) {
+function isHex(str: string): boolean {
   const regexp = /^0x[0-9a-fA-F]+$/
   return regexp.test(str)
 }
 
-let filtersMap: Map<string, Types.InternalFilter> = new Map()
+function firstArg(args: RequestParamsLike): string {
+  if (Array.isArray(args)) {
+    return args[0] as string;
+  } else {
+    throw new Error('Invalid arguments');
+  }
+}
 
-function extractTransactionObject(bigTransaction: any, transactionIndexArg?: number) {
+const filtersMap: Map<string, Types.InternalFilter> = new Map()
+
+interface TxObject {
+  blockHash: string
+  blockNumber: string
+  from: string
+  gas: string
+  gasPrice: string
+  maxFeePerGas?: string
+  maxPriorityFeePerGas?: string
+  hash?: string
+  input?: string
+  nonce: string
+  to: string
+  transactionIndex: string
+  value: string
+  type: string
+  chainId: string
+  v: string
+  r: string
+  s: string
+}
+
+type Tx = TxObject & {
+  timestamp: number
+  gasUsed: string
+  gasRefund: string
+  transactionHash?: string
+  data?: string
+  logs?: string[]
+  logsBloom?: string
+  cumulativeGasUsed?: string
+  contractAddress?: string
+  status?: string | number
+  transactionType?: string | number
+}
+
+type TxParam =
+  | {
+      readableReceipt: Tx
+      txHash?: string
+      transactionType?: string | number
+    }
+  | {
+      wrappedEVMAccount: {
+        readableReceipt: Tx
+        txHash: string
+      }
+    }
+
+function extractTransactionObject(bigTransaction: TxParam, transactionIndexArg?: number): TxObject | null {
   if (bigTransaction) {
-    const tx = bigTransaction.wrappedEVMAccount || bigTransaction
+    const tx = 'wrappedEVMAccount' in bigTransaction ? bigTransaction.wrappedEVMAccount : bigTransaction;
     return {
       blockHash: tx.readableReceipt.blockHash,
       blockNumber: tx.readableReceipt.blockNumber,
@@ -122,14 +183,38 @@ function extractTransactionObject(bigTransaction: any, transactionIndexArg?: num
       r: tx.readableReceipt.r,
       s: tx.readableReceipt.s,
     }
-  } else {
-    return null
   }
+
+  return null
 }
 
-function extractTransactionReceiptObject(bigTransaction: any, transactionIndexArg?: number) {
+interface ReceiptObject {
+  blockHash: string
+  blockNumber: string
+  contractAddress?: string
+  cumulativeGasUsed?: string
+  effectiveGasPrice: string
+  from: string
+  gasUsed: string
+  logs?: string[]
+  logsBloom?: string
+  status?: string
+  to: string
+  transactionHash?: string
+  transactionIndex: string
+  type?: string
+}
+
+
+function extractTransactionReceiptObject(
+  bigTransaction: TxParam,
+  transactionIndexArg?: number
+): ReceiptObject | null {
   if (bigTransaction) {
-    const tx = bigTransaction.wrappedEVMAccount || bigTransaction
+    const tx = 'wrappedEVMAccount' in bigTransaction ? bigTransaction.wrappedEVMAccount : bigTransaction
+
+    const txType = 'transactionType' in bigTransaction ? bigTransaction.transactionType : undefined
+
     return {
       blockHash: tx.readableReceipt.blockHash,
       blockNumber: tx.readableReceipt.blockNumber,
@@ -149,17 +234,14 @@ function extractTransactionReceiptObject(bigTransaction: any, transactionIndexAr
       transactionIndex: transactionIndexArg
         ? '0x' + transactionIndexArg.toString(16)
         : tx.readableReceipt.transactionIndex,
-      type:
-        typeof bigTransaction.transactionType === 'number'
-          ? '0x' + bigTransaction.transactionType.toString(16)
-          : bigTransaction.transactionType,
+      type: typeof txType === 'number' ? '0x' + txType.toString(16) : txType,
     }
-  } else {
-    return null
   }
+
+  return null
 }
 
-export function buildLogAPIUrl(request: Types.LogQueryRequest, baseDomain = config.explorerUrl) {
+export function buildLogAPIUrl(request: Types.LogQueryRequest, baseDomain = config.explorerUrl): string {
   const apiUrl = `${baseDomain}/api/log`
   const queryParams = []
 
@@ -192,26 +274,30 @@ export function buildLogAPIUrl(request: Types.LogQueryRequest, baseDomain = conf
   return `${apiUrl}${queryParams.length > 0 ? `?${queryParams.join('&')}` : ''}`
 }
 
-async function getLogsFromExplorer(request: Types.LogQueryRequest): Promise<any[]> {
-  let updates: any[] = []
+interface LogItem {
+  log: string
+}
+
+async function getLogsFromExplorer(request: Types.LogQueryRequest): Promise<string[]> {
+  let updates: string[] = []
   let currentPage = 1
 
   try {
     if (request == null) return []
-    let baseUrl = buildLogAPIUrl(request)
-    let fullUrl = baseUrl + `&page=${currentPage}`
+    const baseUrl = buildLogAPIUrl(request)
+    const fullUrl = baseUrl + `&page=${currentPage}`
     if (config.verbose) console.log(`getLogsFromExplorer fullUrl: ${fullUrl}`)
     let res = await axios.get(fullUrl)
 
     if (res.data && res.data.success && res.data.logs.length > 0) {
-      const logs = res.data.logs.map((item: any) => item.log)
+      const logs = res.data.logs.map((item: LogItem) => item.log)
       updates = updates.concat(logs)
       currentPage += 1
       const totalPages = res.data.totalPages
       while (currentPage <= totalPages) {
         res = await axios.get(`${baseUrl}&page=${currentPage}`)
         if (res.data && res.data.success) {
-          const logs = res.data.logs.map((item: any) => item.log)
+          const logs = res.data.logs.map((item: LogItem) => item.log)
           updates = updates.concat(logs)
         }
         currentPage += 1
@@ -223,9 +309,15 @@ async function getLogsFromExplorer(request: Types.LogQueryRequest): Promise<any[
   return updates
 }
 
-async function getCurrentBlockInfo() {
+interface BlockInfo {
+  blockNumber: string
+  timestamp: string
+  nodeUrl?: string
+}
+
+async function getCurrentBlockInfo(): Promise<BlockInfo> {
   if (verbose) console.log('Running getCurrentBlockInfo')
-  let result = { ...lastBlockInfo, nodeUrl: undefined }
+  let result: BlockInfo = { ...lastBlockInfo, nodeUrl: undefined }
 
   try {
     if (verbose) console.log('Querying getCurrentBlockInfo from validator')
@@ -236,7 +328,7 @@ async function getCurrentBlockInfo() {
       nodeUrl: res.data.nodeUrl,
       blockNumber: blockNumber,
       timestamp: intStringToHex(String(timestamp)),
-    } as any
+    }
     lastBlockInfo = { ...result }
     return result
   } catch (e) {
@@ -245,7 +337,31 @@ async function getCurrentBlockInfo() {
   return result
 }
 
-async function getCurrentBlock() {
+interface CurrentBlockInfo {
+  timestamp: string
+  nodeUrl: string | undefined
+  difficulty: string
+  extraData: string
+  gasLimit: string
+  gasUsed: string
+  hash: string
+  logsBloom: string
+  miner: string
+  mixHash: string
+  nonce: string
+  number: string
+  parentHash: string
+  receiptsRoot: string
+  sha3Uncles: string
+  size: string
+  stateRoot: string
+  totalDifficulty: string
+  transactions: []
+  transactionsRoot: string
+  uncles: []
+}
+
+async function getCurrentBlock(): Promise<CurrentBlockInfo> {
   let blockNumber = '0'
   let timestamp = '0x55ba467c'
   let nodeUrl
@@ -258,7 +374,7 @@ async function getCurrentBlock() {
     console.log('Error getCurrentBlockInfo', e)
   }
   if (verbose) console.log('Running getcurrentBlock', blockNumber, timestamp)
-  return {
+  const result: CurrentBlockInfo = {
     nodeUrl: nodeUrl,
     difficulty: '0x4ea3f27bc',
     extraData: '0x476574682f4c5649562f76312e302e302f6c696e75782f676f312e342e32',
@@ -282,11 +398,13 @@ async function getCurrentBlock() {
     transactionsRoot: '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421',
     uncles: [],
   }
+
+  return result
 }
 
-async function getExplorerPendingTransactions() {
+async function getExplorerPendingTransactions(): Promise<string[]> {
   const explorerURL = config.explorerUrl
-  let txHashes: string[] = []
+  const txHashes: string[] = []
   let currentPage = 1
   let hasMorePages = true
 
@@ -314,7 +432,7 @@ async function getExplorerPendingTransactions() {
   return txHashes
 }
 
-export function createRejectTxStatus(txHash: string, reason: string, ip: string, nodeUrl?: string) {
+export function createRejectTxStatus(txHash: string, reason: string, ip: string, nodeUrl?: string): void {
   recordTxStatus({
     txHash: txHash,
     ip: ip,
@@ -327,14 +445,25 @@ export function createRejectTxStatus(txHash: string, reason: string, ip: string,
   })
 }
 
-export function recordTxStatus(txStatus: TxStatus) {
+export function recordTxStatus(txStatus: TxStatus): void {
   txStatuses.push(txStatus)
   if (txStatuses.length > maxTxCountToStore && config.recordTxStatus) {
     saveTxStatus()
   }
 }
 
-function injectAndRecordTx(txHash: string, tx: any, args: any) {
+function injectAndRecordTx(
+  txHash: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tx: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  args: any,
+): Promise<{
+  nodeUrl: string
+  success: boolean
+  reason: string
+  status: number
+}> {
   const { raw } = tx
   const { baseUrl } = getBaseUrl()
   totalResult += 1
@@ -411,7 +540,7 @@ function injectAndRecordTx(txHash: string, tx: any, args: any) {
   })
 }
 
-export async function saveTxStatus() {
+export async function saveTxStatus(): Promise<void> {
   if (!config.recordTxStatus) return
   if (txStatuses.length === 0) return
   const txStatusesClone = [...txStatuses]
@@ -420,7 +549,7 @@ export async function saveTxStatus() {
 }
 
 export const methods = {
-  web3_clientVersion: async function (args: any, callback: any) {
+  web3_clientVersion: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'web3_clientVersion'
     const ticket = crypto
       .createHash('sha1')
@@ -439,7 +568,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  web3_sha3: async function (args: any, callback: any) {
+  web3_sha3: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'web3_sha3'
     const ticket = crypto
       .createHash('sha1')
@@ -455,7 +584,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  net_version: async function (args: any, callback: any) {
+  net_version: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'net_version'
     const ticket = crypto
       .createHash('sha1')
@@ -471,7 +600,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, chainId)
   },
-  net_listening: async function (args: any, callback: any) {
+  net_listening: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'net_listening'
     const ticket = crypto
       .createHash('sha1')
@@ -486,7 +615,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  net_peerCount: async function (args: any, callback: any) {
+  net_peerCount: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'net_peerCount'
     const ticket = crypto
       .createHash('sha1')
@@ -501,7 +630,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_protocolVersion: async function (args: any, callback: any) {
+  eth_protocolVersion: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_protocolVersion'
     const ticket = crypto
       .createHash('sha1')
@@ -516,7 +645,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_syncing: async function (args: any, callback: any) {
+  eth_syncing: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_syncing'
     const ticket = crypto
       .createHash('sha1')
@@ -532,7 +661,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_coinbase: async function (args: any, callback: any) {
+  eth_coinbase: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_coinbase'
     const ticket = crypto
       .createHash('sha1')
@@ -547,7 +676,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_mining: async function (args: any, callback: any) {
+  eth_mining: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_mining'
     const ticket = crypto
       .createHash('sha1')
@@ -562,7 +691,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_hashrate: async function (args: any, callback: any) {
+  eth_hashrate: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_hashrate'
     const ticket = crypto
       .createHash('sha1')
@@ -577,7 +706,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_gasPrice: async function (args: any, callback: any) {
+  eth_gasPrice: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_gasPrice'
     const ticket = crypto
       .createHash('sha1')
@@ -607,7 +736,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, fallbackGasPrice)
   },
-  eth_accounts: async function (args: any, callback: any) {
+  eth_accounts: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_accounts'
     const ticket = crypto
       .createHash('sha1')
@@ -622,7 +751,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_blockNumber: async function (args: any, callback: any) {
+  eth_blockNumber: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_blockNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -642,7 +771,7 @@ export const methods = {
       callback(null, blockNumber)
     }
   },
-  eth_getBalance: async function (args: any, callback: any) {
+  eth_getBalance: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_getBalance'
     const ticket = crypto
       .createHash('sha1')
@@ -655,7 +784,7 @@ export const methods = {
 
     let address
     try {
-      address = args[0]
+      address = firstArg(args)
     } catch (e) {
       if (verbose) console.log('Unable to get address', e)
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
@@ -698,7 +827,7 @@ export const methods = {
     }
     if (verbose) console.log('Final balance', balance)
   },
-  eth_getStorageAt: async function (args: any, callback: any) {
+  eth_getStorageAt: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_getStorageAt'
     const ticket = crypto
       .createHash('sha1')
@@ -712,7 +841,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_getTransactionCount: async function (args: any, callback: any) {
+  eth_getTransactionCount: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_getTransactionCount'
     const ticket = crypto
       .createHash('sha1')
@@ -725,7 +854,7 @@ export const methods = {
 
     let address
     try {
-      address = args[0]
+      address = firstArg(args)
     } catch (e) {
       if (verbose) console.log('Unable to get address', e)
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
@@ -739,7 +868,7 @@ export const methods = {
       return
     }
 
-    let nonce = await serviceValidator.getTransactionCount(address)
+    const nonce = await serviceValidator.getTransactionCount(address)
     if (nonce) {
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
       callback(null, intStringToHex(nonce))
@@ -748,7 +877,7 @@ export const methods = {
 
     let nodeUrl
     try {
-      const address = args[0]
+      const address = firstArg(args)
       const res = await getAccount(address)
       const account = res.account
       nodeUrl = res.nodeUrl
@@ -772,7 +901,7 @@ export const methods = {
       logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: false }, performance.now())
     }
   },
-  eth_getBlockTransactionCountByHash: async function (args: any, callback: any) {
+  eth_getBlockTransactionCountByHash: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_getBlockTransactionCountByHash'
     const ticket = crypto
       .createHash('sha1')
@@ -782,7 +911,7 @@ export const methods = {
     if (verbose) {
       console.log('Running eth_getBlockTransactionCountByHash', args)
     }
-    let blockHash = args[0]
+    let blockHash = (args as any[])[0];
     if (config.queryFromValidator && config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
       if (blockHash === 'latest') {
@@ -800,7 +929,7 @@ export const methods = {
           const nodeUrl = config.explorerUrl
           logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: false }, performance.now())
         }
-        let result = '0x' + res.data.transactions.length.toString(16)
+        const result = '0x' + res.data.transactions.length.toString(16)
 
         const nodeUrl = config.explorerUrl
         if (verbose) console.log('BLOCK TRANSACTIONS COUNT DETAIL', result)
@@ -823,7 +952,7 @@ export const methods = {
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
     }
   },
-  eth_getBlockTransactionCountByNumber: async function (args: any, callback: any) {
+  eth_getBlockTransactionCountByNumber: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_getBlockTransactionCountByNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -833,11 +962,13 @@ export const methods = {
     if (verbose) {
       console.log('Running eth_getBlockTransactionCountByNumber', args)
     }
-    let blockNumber = args[0]
-    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16)
+
+    let blockNumber = firstArg(args)
+
+    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16).toString()
     if (config.queryFromValidator && config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
-      if (blockNumber === 'latest' || blockNumber === 'earliest') {
+      if (blockNumber === 'latest') {
         const res = await requestWithRetry(
           RequestMethod.Get,
           `/eth_getBlockByNumber?blockNumber=${blockNumber}`
@@ -855,7 +986,7 @@ export const methods = {
           const nodeUrl = config.explorerUrl
           logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: false }, performance.now())
         }
-        let result = '0x' + res.data.transactions.length.toString(16)
+        const result = '0x' + res.data.transactions.length.toString(16)
 
         const nodeUrl = config.explorerUrl
         if (verbose) console.log('BLOCK TRANSACTIONS COUNT DETAIL', result)
@@ -878,7 +1009,7 @@ export const methods = {
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     }
   },
-  eth_getUncleCountByBlockHash: async function (args: any, callback: any) {
+  eth_getUncleCountByBlockHash: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_getUncleCountByBlockHash'
     const ticket = crypto
       .createHash('sha1')
@@ -893,7 +1024,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_getUncleCountByBlockNumber: async function (args: any, callback: any) {
+  eth_getUncleCountByBlockNumber: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_getUncleCountByBlockNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -908,7 +1039,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_getCode: async function (args: any, callback: any) {
+  eth_getCode: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_getCode'
     const ticket = crypto
       .createHash('sha1')
@@ -921,7 +1052,7 @@ export const methods = {
 
     let contractAddress
     try {
-      contractAddress = args[0]
+      contractAddress = firstArg(args)
     } catch (e) {
       console.log('Unable to get contract address', e)
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
@@ -935,7 +1066,7 @@ export const methods = {
       return
     }
 
-    const code = await serviceValidator.getContractCode(args[0])
+    const code = await serviceValidator.getContractCode(firstArg(args))
     if (code) {
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
       callback(null, code)
@@ -944,7 +1075,7 @@ export const methods = {
 
     let nodeUrl
     try {
-      const res = await getCode(args[0])
+      const res = await getCode(firstArg(args))
       const contractCode = res.contractCode
       nodeUrl = res.nodeUrl ? res.nodeUrl : undefined
 
@@ -957,7 +1088,7 @@ export const methods = {
       logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: false }, performance.now())
     }
   },
-  eth_signTransaction: async function (args: any, callback: any) {
+  eth_signTransaction: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_signTransaction'
     const ticket = crypto
       .createHash('sha1')
@@ -972,7 +1103,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_sendTransaction: async function (args: any, callback: any) {
+  eth_sendTransaction: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_sendTransaction'
     const ticket = crypto
       .createHash('sha1')
@@ -1042,7 +1173,7 @@ export const methods = {
                 .then((res: any) => res.nodeUrl)
                 .catch((e: any) => e.nodeUrl)
               nonceTracker[String(sender)] = pendingTx.nonce
-              console.log(`Pending tx count for ${sender}: ${txMemPool[sender].length}`)
+              console.log(`Pending tx count for ${sender}: ${txMemPool[sender].length}`) // eslint-disable-line security/detect-object-injection
               await sleep(500)
             }
           }
@@ -1253,7 +1384,7 @@ export const methods = {
     }
     if (verbose) console.log('callObj', callObj)
 
-    let response = await serviceValidator.ethCall(callObj)
+    const response = await serviceValidator.ethCall(callObj)
     if (response) {
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
       callback(null, '0x' + response)
@@ -1336,8 +1467,8 @@ export const methods = {
         const replayOutput = await replayGas(args[0])
         originalEstimate = hexToBN(replayOutput[0])
       } else if (config.gasEstimateMethod === 'validator') {
-        let gasEstimateParam = args[0]
-        let res = await requestWithRetry(RequestMethod.Post, `/contract/estimateGas`, gasEstimateParam)
+        const gasEstimateParam = args[0]
+        const res = await requestWithRetry(RequestMethod.Post, `/contract/estimateGas`, gasEstimateParam)
 
         if (res.data?.estimateGas) {
           originalEstimate = hexToBN(res.data.estimateGas)
@@ -1412,9 +1543,7 @@ export const methods = {
     let result: any = null
     let nodeUrl = null
     let blockNumber = args[0]
-    if (args[0] == 'latest' || args[0] == 'earliest') {
-      blockNumber = blockNumber
-    } else {
+    if (args[0] !== 'latest' && args[0] !== 'earliest') {
       blockNumber = parseInt(blockNumber)
     }
 
@@ -1453,8 +1582,8 @@ export const methods = {
         console.log('res', JSON.stringify(res.data))
       }
       let index = 0
-      let result = []
-      for (let transaction of res.data.transactions) {
+      const result = []
+      for (const transaction of res.data.transactions) {
         result.push(extractTransactionReceiptObject(transaction, index))
         index++
       }
@@ -1499,13 +1628,12 @@ export const methods = {
       if (blockCount > newestBlock) {
         blockCount = newestBlock
       }
-      let result: {
+      const result: {
         oldestBlock: string
         baseFeePerGas: any[]
         gasUsedRatio: any[]
         reward: undefined
-      }
-      result = {
+      } = {
         oldestBlock: '',
         baseFeePerGas: [],
         gasUsedRatio: [],
@@ -1524,9 +1652,9 @@ export const methods = {
           if (res.data.block) newestBlock = res.data.block.number
         }
         for (let i = 0; i < blockCount; i++) {
-          let blockNumber = newestBlock - i
+          const blockNumber = newestBlock - i
           const res = await axios.get(`${explorerUrl}/api/transaction?blockNumber=${blockNumber}`)
-          let gasPrices = []
+          const gasPrices = []
           let gasUsed = 0
           let gasLimit = 0
           for (const transaction of res.data.transactions) {
@@ -1658,7 +1786,7 @@ export const methods = {
       callback(errorBusy)
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
     }
-    let blockHash = args[0]
+    const blockHash = args[0]
     const index = parseInt(args[1], 16)
     //if (blockHash !== 'latest') blockHash = parseInt(blockHash, 16)
     if (config.queryFromValidator && config.queryFromExplorer) {
@@ -1671,6 +1799,7 @@ export const methods = {
         }
 
         let result
+        // eslint-disable-next-line security/detect-object-injection
         if (res.data.success) result = extractTransactionObject(res.data.transactions[index], index)
         else result = null
 
@@ -1734,6 +1863,7 @@ export const methods = {
         }
 
         let result
+        // eslint-disable-next-line security/detect-object-injection
         if (res.data.success) result = extractTransactionObject(res.data.transactions[index], index)
         else result = null
 
@@ -1816,7 +1946,7 @@ export const methods = {
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     }
   },
-  eth_getUncleByBlockHashAndIndex: async function (args: any, callback: any) {
+  eth_getUncleByBlockHashAndIndex: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_getUncleByBlockHashAndIndex'
     const ticket = crypto
       .createHash('sha1')
@@ -1830,7 +1960,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_getUncleByBlockNumberAndIndex: async function (args: any, callback: any) {
+  eth_getUncleByBlockNumberAndIndex: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_getUncleByBlockNumberAndIndex'
     const ticket = crypto
       .createHash('sha1')
@@ -1844,7 +1974,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_getCompilers: async function (args: any, callback: any) {
+  eth_getCompilers: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_getCompilers'
     const ticket = crypto
       .createHash('sha1')
@@ -1858,7 +1988,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_compileSolidity: async function (args: any, callback: any) {
+  eth_compileSolidity: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_compileSolidity'
     const ticket = crypto
       .createHash('sha1')
@@ -1872,7 +2002,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_compileLLL: async function (args: any, callback: any) {
+  eth_compileLLL: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_compileLLL'
     const ticket = crypto
       .createHash('sha1')
@@ -1884,7 +2014,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_compileSerpent: async function (args: any, callback: any) {
+  eth_compileSerpent: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_compileSerpent'
     const ticket = crypto
       .createHash('sha1')
@@ -1896,7 +2026,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_newBlockFilter: async function (args: any, callback: any) {
+  eth_newBlockFilter: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_newBlockFilter'
     const ticket = crypto
       .createHash('sha1')
@@ -1912,7 +2042,7 @@ export const methods = {
       lastQueriedBlock: parseInt(currentBlock.number.toString()),
       createdBlock: parseInt(currentBlock.number.toString()),
     }
-    const unsubscribe = () => {}
+    const unsubscribe = (): void => void 0
     const internalFilter: Types.InternalFilter = {
       updates: [],
       filter: filterObj,
@@ -1924,7 +2054,7 @@ export const methods = {
     callback(null, filterId)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_newPendingTransactionFilter: async function (args: any, callback: any) {
+  eth_newPendingTransactionFilter: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_newPendingTransactionFilter'
     const ticket = crypto
       .createHash('sha1')
@@ -1943,7 +2073,7 @@ export const methods = {
       lastQueriedBlock: parseInt(currentBlock.number.toString()),
       createdBlock: parseInt(currentBlock.number.toString()),
     }
-    const unsubscribe = () => {}
+    const unsubscribe = (): void => void 0
     const internalFilter: Types.InternalFilter = {
       updates: [],
       filter: filterObj,
@@ -1963,8 +2093,8 @@ export const methods = {
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
 
-    let filterId = args[0]
-    let internalFilter = filtersMap.get(filterId)
+    const filterId = args[0]
+    const internalFilter = filtersMap.get(filterId)
     if (internalFilter == null) {
       callback(null, false)
       return
@@ -1984,7 +2114,7 @@ export const methods = {
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
 
-    let inputFilter = args[0]
+    const inputFilter = args[0]
 
     if (inputFilter == null) {
       callback(null, null)
@@ -1993,7 +2123,7 @@ export const methods = {
     const { address, topics } = parseFilterDetails(inputFilter || {})
     const currentBlock = await getCurrentBlock()
     const filterId = getFilterId()
-    let filterObj: Types.LogFilter = {
+    const filterObj: Types.LogFilter = {
       id: filterId,
       address: address,
       topics,
@@ -2005,7 +2135,7 @@ export const methods = {
     }
     if (filterObj.fromBlock === 'latest') filterObj.fromBlock = lastBlockInfo.blockNumber
     if (filterObj.toBlock === 'latest') delete filterObj.toBlock
-    const unsubscribe = () => {}
+    const unsubscribe = (): void => void 0
     const internalFilter: Types.InternalFilter = {
       updates: [],
       filter: filterObj,
@@ -2025,13 +2155,13 @@ export const methods = {
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
 
-    let filterId = args[0]
+    const filterId = args[0]
 
     const internalFilter: Types.InternalFilter | undefined = filtersMap.get(filterId.toString())
     let updates: any[] = []
     if (internalFilter && internalFilter.type === Types.FilterTypes.log) {
-      let logFilter = internalFilter.filter as Types.LogFilter
-      let request: Types.LogQueryRequest = {
+      const logFilter = internalFilter.filter as Types.LogFilter
+      const request: Types.LogQueryRequest = {
         address: logFilter.address,
         topics: logFilter.topics,
         fromBlock: String(logFilter.lastQueriedBlock + 1),
@@ -2048,12 +2178,12 @@ export const methods = {
         updates = updatesFromCollector
       }
       internalFilter.updates = []
-      let currentBlock = await getCurrentBlock()
+      const currentBlock = await getCurrentBlock()
       // this could potentially have issue because explorer server is a bit behind validator in terms of tx receipt or block number
       logFilter.lastQueriedBlock = parseInt(currentBlock.number.toString())
       logFilter.lastQueriedTimestamp = Date.now()
     } else if (internalFilter && internalFilter.type === Types.FilterTypes.block) {
-      let blockFilter = internalFilter.filter as Types.BlockFilter
+      const blockFilter = internalFilter.filter as Types.BlockFilter
       const url = `/eth_getBlockHashes?fromBlock=${blockFilter.lastQueriedBlock + 1}`
       const res = await requestWithRetry(RequestMethod.Get, url)
       if (res.data && res.data.blockHashes) {
@@ -2064,7 +2194,7 @@ export const methods = {
     } else if (internalFilter && internalFilter.type === Types.FilterTypes.pendingTransaction) {
       try {
         // fetch pending transaction hashes from explorer and return them
-        let pendingTransactionHashes = await getExplorerPendingTransactions()
+        const pendingTransactionHashes = await getExplorerPendingTransactions()
 
         internalFilter.updates = pendingTransactionHashes
         // Fetch the current block info
@@ -2104,13 +2234,13 @@ export const methods = {
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
 
-    let filterId = args[0]
+    const filterId = args[0]
     let logs: any[] = []
 
     const internalFilter: Types.InternalFilter | undefined = filtersMap.get(filterId.toString())
     if (internalFilter && internalFilter.type === Types.FilterTypes.log) {
-      let logFilter = internalFilter.filter as Types.LogFilter
-      let request: Types.LogQueryRequest = {
+      const logFilter = internalFilter.filter as Types.LogFilter
+      const request: Types.LogQueryRequest = {
         address: logFilter.address,
         topics: logFilter.topics,
         fromBlock: String(logFilter.createdBlock),
@@ -2146,7 +2276,7 @@ export const methods = {
     if (verbose) {
       console.log('Running getLogs', args)
     }
-    let request = args[0]
+    const request = args[0]
     let logs: any[] = []
     if (request.fromBlock === 'earliest') {
       request.fromBlock = '0'
@@ -2156,7 +2286,7 @@ export const methods = {
         request.fromBlock = lastBlockInfo.blockNumber
       } else {
         try {
-          let { blockNumber } = await getCurrentBlockInfo()
+          const { blockNumber } = await getCurrentBlockInfo()
           request.fromBlock = blockNumber
         } catch (e) {
           console.error(`eth_getLogs: failed to get current block`, e)
@@ -2171,7 +2301,7 @@ export const methods = {
         request.toBlock = lastBlockInfo.blockNumber
       } else {
         try {
-          let { blockNumber } = await getCurrentBlockInfo()
+          const { blockNumber } = await getCurrentBlockInfo()
           request.toBlock = blockNumber
         } catch (e) {
           console.error(`eth_getLogs: failed to get current block`, e)
@@ -2203,7 +2333,7 @@ export const methods = {
     callback(null, logs)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_getWork: async function (args: any, callback: any) {
+  eth_getWork: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_getWork'
     const ticket = crypto
       .createHash('sha1')
@@ -2215,7 +2345,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_submitWork: async function (args: any, callback: any) {
+  eth_submitWork: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_submitWork'
     const ticket = crypto
       .createHash('sha1')
@@ -2227,7 +2357,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_submitHashrate: async function (args: any, callback: any) {
+  eth_submitHashrate: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_submitHashrate'
     const ticket = crypto
       .createHash('sha1')
@@ -2347,9 +2477,7 @@ export const methods = {
     }
 
     let blockNumber = args[0]
-    if (args[0] == 'latest' || args[0] == 'earliest') {
-      blockNumber = blockNumber
-    } else {
+    if (args[0] != 'latest' && args[0] != 'earliest') {
       blockNumber = parseInt(blockNumber)
     }
 
@@ -2463,7 +2591,7 @@ export const methods = {
       callback(errorBusy)
     }
   },
-  db_putString: async function (args: any, callback: any) {
+  db_putString: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'db_putString'
     const ticket = crypto
       .createHash('sha1')
@@ -2475,7 +2603,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  db_getString: async function (args: any, callback: any) {
+  db_getString: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'db_getString'
     const ticket = crypto
       .createHash('sha1')
@@ -2487,7 +2615,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  db_putHex: async function (args: any, callback: any) {
+  db_putHex: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'db_putHex'
     const ticket = crypto
       .createHash('sha1')
@@ -2499,7 +2627,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  db_getHex: async function (args: any, callback: any) {
+  db_getHex: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'db_getHex'
     const ticket = crypto
       .createHash('sha1')
@@ -2511,7 +2639,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  shh_version: async function (args: any, callback: any) {
+  shh_version: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'shh_version'
     const ticket = crypto
       .createHash('sha1')
@@ -2523,7 +2651,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  shh_post: async function (args: any, callback: any) {
+  shh_post: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'shh_post'
     const ticket = crypto
       .createHash('sha1')
@@ -2535,7 +2663,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  shh_newIdentity: async function (args: any, callback: any) {
+  shh_newIdentity: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'shh_newIdentity'
     const ticket = crypto
       .createHash('sha1')
@@ -2547,7 +2675,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  shh_hasIdentity: async function (args: any, callback: any) {
+  shh_hasIdentity: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'shh_hasIdentity'
     const ticket = crypto
       .createHash('sha1')
@@ -2559,7 +2687,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  shh_newGroup: async function (args: any, callback: any) {
+  shh_newGroup: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'shh_newGroup'
     const ticket = crypto
       .createHash('sha1')
@@ -2571,7 +2699,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  shh_addToGroup: async function (args: any, callback: any) {
+  shh_addToGroup: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'shh_addToGroup'
     const ticket = crypto
       .createHash('sha1')
@@ -2583,7 +2711,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  shh_newFilter: async function (args: any, callback: any) {
+  shh_newFilter: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'shh_newFilter'
     const ticket = crypto
       .createHash('sha1')
@@ -2595,7 +2723,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  shh_uninstallFilter: async function (args: any, callback: any) {
+  shh_uninstallFilter: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'shh_uninstallFilter'
     const ticket = crypto
       .createHash('sha1')
@@ -2607,7 +2735,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  shh_getFilterChanges: async function (args: any, callback: any) {
+  shh_getFilterChanges: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'shh_getFilterChanges'
     const ticket = crypto
       .createHash('sha1')
@@ -2619,7 +2747,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  shh_getMessages: async function (args: any, callback: any) {
+  shh_getMessages: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'shh_getMessages'
     const ticket = crypto
       .createHash('sha1')
@@ -2631,7 +2759,7 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_chainId: async function (args: any, callback: any) {
+  eth_chainId: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_chainId'
     const ticket = crypto
       .createHash('sha1')
