@@ -35,6 +35,8 @@ import { subscriptionEventEmitter } from './websocket'
 import { evmLogProvider_ConnectionStream } from './websocket/log_server'
 import * as Types from './types'
 import { addEntry, checkEntry, getGasEstimate, removeEntry } from './service/gasEstimate'
+import { isValidAddress } from 'ethereumjs-util'
+import { isHexString } from 'ethereumjs-util'
 import { collectorAPI } from './external/Collector'
 import { serviceValidator } from './external/ServiceValidator'
 import { JSONRPCCallbackTypePlain, RequestParamsLike, JSONRPCError } from 'jayson'
@@ -964,6 +966,10 @@ export const methods = {
     balance = '0x0'
     let nodeUrl
     try {
+      const address = args[0]
+      if (!address || !isValidAddress(address) || address.length !== 42) {
+        throw new Error('Invalid Ethereum Address.')
+      }
       if (verbose) console.log('address', address)
       if (verbose) console.log('ETH balance', typeof balance, balance)
       const res = await getAccountFromValidator(address)
@@ -1933,6 +1939,10 @@ export const methods = {
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
     /* prettier-ignore */ if (firstLineLogs) { console.log('Running getBlockByHash', args) }
     let result: readableBlock | null = null
+    const blockHash = args[0]
+    if (!blockHash || !isHexString(blockHash) || blockHash.length !== 66) {
+      throw new Error('Invalid Block Hash.')
+    }
     //getCurrentBlock handles errors, no try catch needed
     result = await collectorAPI.getBlock(args[0], 'hash', args[1])
     if (!result) {
@@ -2177,8 +2187,11 @@ export const methods = {
       countSuccessResponse(api_name, 'success', 'collector')
       return
     } else {
+    if (!txHash || !isHexString(txHash) || txHash.length !== 66) {
+      throw new Error('Invalid Transaction Hash.')
       result = null
     }
+    
     let nodeUrl
     while (retry < 5 && !success) {
       try {
@@ -2415,6 +2428,9 @@ export const methods = {
       let res
       let result
       const txHash = args[0]
+      if (!txHash || !isHexString(txHash) || txHash.length !== 66) {
+        throw new Error(`Invalid Transaction Hash.`)
+      }
       result = await collectorAPI.getTransactionReceipt(txHash)
       if (!result) {
         // optimistically return null if the receipt is not found in the collector
