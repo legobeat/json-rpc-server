@@ -11,7 +11,6 @@
     "clean-log": "rm -rf ./log",
     "lint": "eslint './src/**/*.ts'",
     "lint-windows": "eslint ./src/**/*.ts",
-    "update-docker-dev": "docker build -t registry.gitlab.com/shardeum/json-rpc-server:dev . --push",
     "format-check": "prettier --check './src/**/*.ts'"
   },
   "author": "thantsintoe",
@@ -20,7 +19,7 @@
     "@ethereumjs/tx": "3.4.0",
     "@shardus/archiver-discovery": "1.1.0",
     "@shardus/crypto-utils": "4.0.4",
-    "axios": "1.6.1",
+    "axios": "0.24.0",
     "better-sqlite3": "7.6.2",
     "body-parser": "1.19.0",
     "connect": "3.7.0",
@@ -57,9 +56,6 @@
   },
   "overrides": {
     "semver": "7.5.3",
-    "optionator": "0.9.3",
-    "qs": "6.11.2",
-    "systeminformation": "5.21.7",
-    "axios": "1.6.1"
+    "optionator": "0.9.3"
   }
 }

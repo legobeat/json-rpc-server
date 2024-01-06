@@ -12,4 +12,3 @@ config.js
 .env
 dist/
 .idea/
-.DS_Store
