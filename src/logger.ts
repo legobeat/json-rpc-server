@@ -134,8 +134,8 @@ export function setupLogEvents() {
         detailedList.push({
           ...txStatus,
           type: type,
-          to: bufferToHex(tx.to),
-          from: bufferToHex(tx.getSenderAddress()),
+          to: bufferToHex(tx.to ? tx.to.toBuffer() : Buffer.from('')),
+          from: bufferToHex(tx.getSenderAddress().toBuffer()),
           timestamp: txStatus.timestamp,
           nodeUrl: txStatus.nodeUrl,
         })
