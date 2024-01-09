@@ -52,7 +52,7 @@ const errorBusy = { code: errorCode, message: 'Busy or error' }
 export let txStatuses: TxStatus[] = []
 const maxTxCountToStore = 10000
 const txMemPool: {
-  [key: string]: object
+  [key: string]: { nonce: number; tx: TransactionData }[]
 } = {}
 const nonceTracker: {
   [key: string]: number
@@ -89,6 +89,58 @@ export type DetailedTxStatus = {
   nodeUrl?: string
 }
 
+type JsonValue = string | number | boolean | null | undefined | JsonValue[] | { [key: string]: JsonValue }
+
+// [] ask about this with Thant
+type TransactionData = {
+  raw?: string
+  sign?: string
+  tag?: string
+  tx?: string | { [key: string]: JsonValue }
+  timestamp?: number
+  [key: string]: JsonValue
+}
+
+interface TransactionInjectionOutcome {
+  nodeUrl: string
+  success: boolean
+  reason: string
+  status: number
+}
+
+interface JSONRPCErrorLike {
+  code: number
+  message: string
+  data?: object
+}
+
+export interface TransactionResult {
+  txId: string
+  accountId: string
+  timestamp: number
+  cycleNumber: number
+  data: {
+    readableReceipt: ReadableReceipt
+  }
+  result: {
+    txIdShort: string
+    txResult: string
+  }
+  originalTxData: unknown
+  sign: unknown
+}
+
+interface ReadableReceipt {
+  status: number
+  from: string
+  to: string
+  nonce: string
+  value: string
+  data: string
+  reason: string
+  gasUsed: string
+}
+
 function hexStrToInt(hexStr: string): number {
   return parseInt(hexStr.slice(2), 16)
 }
@@ -100,9 +152,9 @@ function isHex(str: string): boolean {
 
 function firstArg(args: RequestParamsLike): string {
   if (Array.isArray(args)) {
-    return args[0] as string;
+    return args[0] as string
   } else {
-    throw new Error('Invalid arguments');
+    throw new Error('Invalid arguments')
   }
 }
 
@@ -158,7 +210,7 @@ type TxParam =
 
 function extractTransactionObject(bigTransaction: TxParam, transactionIndexArg?: number): TxObject | null {
   if (bigTransaction) {
-    const tx = 'wrappedEVMAccount' in bigTransaction ? bigTransaction.wrappedEVMAccount : bigTransaction;
+    const tx = 'wrappedEVMAccount' in bigTransaction ? bigTransaction.wrappedEVMAccount : bigTransaction
     return {
       blockHash: tx.readableReceipt.blockHash,
       blockNumber: tx.readableReceipt.blockNumber,
@@ -204,7 +256,6 @@ interface ReceiptObject {
   transactionIndex: string
   type?: string
 }
-
 
 function extractTransactionReceiptObject(
   bigTransaction: TxParam,
@@ -457,7 +508,7 @@ function injectAndRecordTx(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tx: any,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  args: any,
+  args: any
 ): Promise<{
   nodeUrl: string
   success: boolean
@@ -901,7 +952,10 @@ export const methods = {
       logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: false }, performance.now())
     }
   },
-  eth_getBlockTransactionCountByHash: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
+  eth_getBlockTransactionCountByHash: async function (
+    args: RequestParamsLike,
+    callback: JSONRPCCallbackTypePlain
+  ) {
     const api_name = 'eth_getBlockTransactionCountByHash'
     const ticket = crypto
       .createHash('sha1')
@@ -911,7 +965,7 @@ export const methods = {
     if (verbose) {
       console.log('Running eth_getBlockTransactionCountByHash', args)
     }
-    let blockHash = (args as any[])[0];
+    let blockHash = (args as string[])[0]
     if (config.queryFromValidator && config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
       if (blockHash === 'latest') {
@@ -952,7 +1006,10 @@ export const methods = {
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
     }
   },
-  eth_getBlockTransactionCountByNumber: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
+  eth_getBlockTransactionCountByNumber: async function (
+    args: RequestParamsLike,
+    callback: JSONRPCCallbackTypePlain
+  ) {
     const api_name = 'eth_getBlockTransactionCountByNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -1024,7 +1081,10 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_getUncleCountByBlockNumber: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
+  eth_getUncleCountByBlockNumber: async function (
+    args: RequestParamsLike,
+    callback: JSONRPCCallbackTypePlain
+  ) {
     const api_name = 'eth_getUncleCountByBlockNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -1119,7 +1179,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     callback(null, result)
   },
-  eth_sendRawTransaction: async function (args: any, callback: any) {
+  eth_sendRawTransaction: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'eth_sendRawTransaction'
     const ticket = crypto
       .createHash('sha1')
@@ -1131,12 +1191,18 @@ export const methods = {
       console.log('Sending raw tx to /inject endpoint', new Date(now), now)
       console.log('Running sendRawTransaction', args)
     }
-    let nodeUrl: any
+    let nodeUrl: string | undefined
     let txHash = ''
     let gasLimit = ''
     try {
+      if (!Array.isArray(args)) {
+        // Handle the case where args is not an array, by returning an error
+        console.error('Expected args to be an array')
+        return
+      }
+
       const { isInternalTx } = args[0]
-      let tx: any
+      let tx: TransactionData
 
       if (isInternalTx === true) {
         console.log('We are processing an internal tx')
@@ -1157,7 +1223,7 @@ export const methods = {
         const sender = transaction.getSenderAddress().toString()
         let memPoolTx = txMemPool[String(sender)]
 
-        if (config.nonceValidate && memPoolTx && memPoolTx.length > 0) {
+        if (config.nonceValidate && Array.isArray(memPoolTx) && memPoolTx.length > 0) {
           const maxIteration = memPoolTx.length
           let count = 0
           while (count < maxIteration) {
@@ -1168,10 +1234,14 @@ export const methods = {
               memPoolTx[0].nonce === nonceTracker[String(sender)] + 1
             ) {
               const pendingTx = memPoolTx.shift()
+              if (!pendingTx) {
+                console.error('No pending transaction found in the mem pool')
+                return
+              }
               console.log(`Injecting pending tx in the mem pool`, pendingTx.nonce)
-              nodeUrl = injectAndRecordTx(txHash, pendingTx.tx, args)
-                .then((res: any) => res.nodeUrl)
-                .catch((e: any) => e.nodeUrl)
+              nodeUrl = await injectAndRecordTx(txHash, pendingTx.tx, args)
+                .then((res: TransactionInjectionOutcome) => res.nodeUrl)
+                .catch((e: TransactionInjectionOutcome) => e.nodeUrl)
               nonceTracker[String(sender)] = pendingTx.nonce
               console.log(`Pending tx count for ${sender}: ${txMemPool[sender].length}`) // eslint-disable-line security/detect-object-injection
               await sleep(500)
@@ -1185,7 +1255,7 @@ export const methods = {
           console.log('BUG: Incorrect tx nonce sequence', lastTxNonce, currentTxNonce)
           if (memPoolTx) {
             memPoolTx.push({ nonce: currentTxNonce, tx })
-            memPoolTx = memPoolTx.sort((a: any, b: any) => a.nonce - b.nonce)
+            memPoolTx = memPoolTx.sort((a, b) => a.nonce - b.nonce)
           } else {
             memPoolTx = [{ nonce: currentTxNonce, tx }]
           }
@@ -1195,7 +1265,7 @@ export const methods = {
       }
 
       injectAndRecordTx(txHash, tx, args)
-        .then((res: any) => {
+        .then((res) => {
           nodeUrl = res.nodeUrl
           if (res.success === true) {
             logEventEmitter.emit(
@@ -1224,7 +1294,13 @@ export const methods = {
               performance.now()
             )
             callback(
-              serializeError({ status: res.status }, { fallbackError: { message: res.reason, code: 101 } }),
+              {
+                ...serializeError(
+                  { status: res.status },
+                  { fallbackError: { message: res.reason, code: 101 } }
+                ),
+                data: {},
+              } as JSONRPCErrorLike,
               null
             )
           }
@@ -1245,7 +1321,7 @@ export const methods = {
           callback(e, null)
           return undefined
         })
-        .then((res: any) => {
+        .then((res) => {
           // Gas cache verification starts here
 
           // Return if transaction was successful or if cache is disabled
@@ -1265,7 +1341,7 @@ export const methods = {
 
           return fetchTxReceiptFromArchiver(txHash)
         })
-        .then((transaction: any) => {
+        .then((transaction: TransactionResult) => {
           if (!transaction?.data?.readableReceipt) {
             throw new Error(`Gas verification error: Unable to fetch transaction receipt for ${txHash}`)
           }
@@ -1281,20 +1357,22 @@ export const methods = {
         .catch((e) => {
           console.log(`Gas verification error: ${e.message}`)
         })
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.log(`Error while injecting tx to consensor`, e)
+      const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred'
       logEventEmitter.emit(
         'fn_end',
         ticket,
         {
           nodeUrl,
           success: false,
-          reason: e.toString(),
+          reason: errorMessage,
           hash: txHash,
         },
         performance.now()
       )
-      callback({ message: e }, null)
+      //[] this is a generic code. Should no code be here or should we pick a more specific code?
+      callback({ message: errorMessage, code: -32000 }, null)
     }
   },
   eth_sendInternalTransaction: async function (args: any, callback: any) {
@@ -1316,7 +1394,7 @@ export const methods = {
       if (config.generateTxTimestamp && internalTx.timestamp == null) internalTx.timestamp = now
 
       injectAndRecordTx(txHash, internalTx, args)
-        .then((res: any) => {
+        .then((res) => {
           if (res.success === true) {
             logEventEmitter.emit(
               'fn_end',
@@ -1946,7 +2024,10 @@ export const methods = {
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
     }
   },
-  eth_getUncleByBlockHashAndIndex: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
+  eth_getUncleByBlockHashAndIndex: async function (
+    args: RequestParamsLike,
+    callback: JSONRPCCallbackTypePlain
+  ) {
     const api_name = 'eth_getUncleByBlockHashAndIndex'
     const ticket = crypto
       .createHash('sha1')
@@ -1960,7 +2041,10 @@ export const methods = {
     callback(null, result)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_getUncleByBlockNumberAndIndex: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
+  eth_getUncleByBlockNumberAndIndex: async function (
+    args: RequestParamsLike,
+    callback: JSONRPCCallbackTypePlain
+  ) {
     const api_name = 'eth_getUncleByBlockNumberAndIndex'
     const ticket = crypto
       .createHash('sha1')
@@ -2054,7 +2138,10 @@ export const methods = {
     callback(null, filterId)
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  eth_newPendingTransactionFilter: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
+  eth_newPendingTransactionFilter: async function (
+    args: RequestParamsLike,
+    callback: JSONRPCCallbackTypePlain
+  ) {
     const api_name = 'eth_newPendingTransactionFilter'
     const ticket = crypto
       .createHash('sha1')
