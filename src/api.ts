@@ -35,8 +35,6 @@ import { subscriptionEventEmitter } from './websocket'
 import { evmLogProvider_ConnectionStream } from './websocket/log_server'
 import * as Types from './types'
 import { addEntry, checkEntry, getGasEstimate, removeEntry } from './service/gasEstimate'
-import { isValidAddress } from 'ethereumjs-util'
-import { isHexString } from 'ethereumjs-util'
 import { collectorAPI } from './external/Collector'
 import { serviceValidator } from './external/ServiceValidator'
 import { JSONRPCCallbackTypePlain, RequestParamsLike, JSONRPCError } from 'jayson'
@@ -966,10 +964,6 @@ export const methods = {
     balance = '0x0'
     let nodeUrl
     try {
-      const address = args[0]
-      if (!address || !isValidAddress(address) || address.length !== 42) {
-        throw new Error('Invalid Ethereum Address.')
-      }
       if (verbose) console.log('address', address)
       if (verbose) console.log('ETH balance', typeof balance, balance)
       const res = await getAccountFromValidator(address)
@@ -1939,21 +1933,36 @@ export const methods = {
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
     /* prettier-ignore */ if (firstLineLogs) { console.log('Running getBlockByHash', args) }
     let result: readableBlock | null = null
-    const blockHash = args[0]
-    if (!blockHash || !isHexString(blockHash) || blockHash.length !== 66) {
-      throw new Error('Invalid Block Hash.')
+    let blockHash;
+    try{
+      blockHash = args[0];
+      if (!this.isTxOrBlockHash(blockHash)) {
+        throw new Error("Invalid Block Hash.")
+      }
     }
-    //getCurrentBlock handles errors, no try catch needed
-    result = await collectorAPI.getBlock(args[0], 'hash', args[1])
-    if (!result) {
-      // since there are no transactions included when we query from validator,
-      // the transaction_detail_flag is not used
-      const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${args[0]}`)
-      result = res.data.block
-    }
+    catch(e){
+      if (verbose) console.log('Unable to get block hash or block hash is invalid', e);
+      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now());
+      callback(e,null);
+      return;
 
-    logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-    callback(null, result)
+    }
+    // Validate the block hash format
+  
+    try {
+      // getCurrentBlock handles errors internally, but we should still catch any that bubble up
+      result = await collectorAPI.getBlock(blockHash, 'hash', args[1]);
+      if (!result) {
+        // The transaction_detail_flag is not used when querying from the validator
+        const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${blockHash}`);
+        result = res.data.block;
+      }
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now());
+      callback(null, result);
+    } catch (error) {
+      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now());
+      callback(error, null);
+    }},
     countSuccessResponse(api_name, 'success', 'TBD')
   },
   eth_getBlockByNumber: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
@@ -2161,8 +2170,15 @@ export const methods = {
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
     /* prettier-ignore */ if (firstLineLogs) { console.log('Running getTransactionByHash', args) }
-    const txHash = args[0]
-    if (!isHexString(txHash)) {
+    let txHash;
+    try{
+      txHash = args[0]
+      if (!this.isTxOrBlockHash(txHash)) {
+        throw new Error("Invalid Transaction Hash");
+      }
+    }
+    catch(e){
+      if (verbose) console.log('Unable to get transaction hash or invalid transaction hash', e);
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
       callback({ message: 'Invalid transaction hex string' } as JSONRPCError, null)
       countFailedResponse(api_name, 'invalid transaction hex string')
@@ -2191,7 +2207,6 @@ export const methods = {
       throw new Error('Invalid Transaction Hash.')
       result = null
     }
-    
     let nodeUrl
     while (retry < 5 && !success) {
       try {
@@ -2427,9 +2442,18 @@ export const methods = {
     try {
       let res
       let result
-      const txHash = args[0]
-      if (!txHash || !isHexString(txHash) || txHash.length !== 66) {
-        throw new Error(`Invalid Transaction Hash.`)
+      let txHash
+      try{
+        txHash = args[0]
+        if (!this.isTxOrBlockHash(txHash)) {
+          throw new Error("Invalid Transaction Hash");
+        }
+      }
+      catch(e){
+        if (verbose) console.log('Unable to get transaction hash or invalid transaction hash', e);
+        logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+        callback(e,null)
+        return
       }
       result = await collectorAPI.getTransactionReceipt(txHash)
       if (!result) {
@@ -3656,4 +3680,16 @@ export const methods = {
       // subscription failed, will not be tracking it
     }
   },
+  isTxOrBlockHash(txOrBlockHash:string){
+    if (!txOrBlockHash || !isHexString(txOrBlockHash) || txOrBlockHash.length !== 66) {
+      return false;
+    }
+    return true;
+  },
+  isEthAddress(address:string){
+    if (!address || !isValidAddress(address) || address.length !== 42) {
+      return false;
+    }
+    return true;
+  }
 }
