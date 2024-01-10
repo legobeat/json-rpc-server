@@ -1148,7 +1148,7 @@ export const methods = {
       console.log('Sending raw tx to /inject endpoint', new Date(now), now)
       console.log('Running sendRawTransaction', args)
     }
-    let nodeUrl: string | undefined
+    let nodeUrl: string | undefined | Promise<string>
     let txHash = ''
     let gasLimit = ''
     try {
@@ -1195,7 +1195,7 @@ export const methods = {
                 return
               }
               console.log(`Injecting pending tx in the mem pool`, pendingTx.nonce)
-              nodeUrl = await injectAndRecordTx(txHash, pendingTx.tx, args)
+              nodeUrl = injectAndRecordTx(txHash, pendingTx.tx, args)
                 .then((res: TransactionInjectionOutcome) => res.nodeUrl)
                 .catch((e: TransactionInjectionOutcome) => e.nodeUrl)
               nonceTracker[String(sender)] = pendingTx.nonce
@@ -1725,7 +1725,7 @@ export const methods = {
             gasPrices.push(transaction.wrappedEVMAccount.readableReceipt.gasPrice)
           }
           result.gasUsedRatio.unshift(gasUsed === 0 && gasLimit === 0 ? 0 : gasUsed / gasLimit)
-          result.baseFeePerGas.unshift(...gasPrices.map(price => parseInt(price, 16)))
+          result.baseFeePerGas.unshift(...gasPrices.map((price) => parseInt(price, 16)))
 
           if (blockNumber === newestBlock - blockCount + 1) {
             result.oldestBlock = '0x' + blockNumber.toString(16)
