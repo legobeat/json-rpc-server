@@ -268,7 +268,7 @@ router.route('/txs').get(async function (req: Request, res: Response) {
       nodeUrl: req.query.nodeUrl as string,
       type: req.query.type as string,
       reason: req.query.reason as string,
-      injected: req.query.injected ? req.query.injected === 'true' : undefined,
+      injected: req.query.injected === 'true' ? true : req.query.injected === 'false' ? false : undefined,
       ip: req.query.ip as string,
       to: req.query.to as string,
       from: req.query.from as string,
