@@ -899,7 +899,6 @@ export function calculateInternalTxHash(tx: object): string {
   return '0x' + hashSignedObj(tx)
 }
 
-// TODO: confirm if unused
 /*
 export async function getTransactionReceipt(hash: string) {
   const txHash = hash
