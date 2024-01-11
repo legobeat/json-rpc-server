@@ -109,6 +109,32 @@ interface TransactionInjectionOutcome {
   status: number
 }
 
+interface OriginalTxData {
+  txId: string
+  timestamp: number
+  cycle: number
+  originalTxData: {
+    tx: {
+      raw: string
+      timestamp: number
+    }
+    timestampReceipt?: {
+      cycleCounter: number
+      cycleMarker: string
+      sign: {
+        owner: string
+        sig: string
+      }
+      timestamp: number
+      txId: string
+    }
+  }
+  sign: {
+    owner: string
+    sig: string
+  }
+}
+
 export interface TransactionResult {
   txId: string
   accountId: string
@@ -121,8 +147,11 @@ export interface TransactionResult {
     txIdShort: string
     txResult: string
   }
-  originalTxData: unknown
-  sign: unknown
+  originalTxData: OriginalTxData
+  sign: {
+    owner: string
+    sig: string
+  }
 }
 
 interface ReadableReceipt {
