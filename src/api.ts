@@ -1017,10 +1017,10 @@ export const methods = {
 
     let blockNumber = args[0]
 
-    if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16).toString()
+    if (blockNumber !== 'latest' && blockNumber !== 'earliest') blockNumber = parseInt(blockNumber, 16).toString()
     if (config.queryFromValidator && config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
-      if (blockNumber === 'latest') {
+      if (blockNumber === 'latest' || blockNumber === 'earliest') {
         const res = await requestWithRetry(
           RequestMethod.Get,
           `/eth_getBlockByNumber?blockNumber=${blockNumber}`
@@ -1880,8 +1880,12 @@ export const methods = {
         }
 
         let result
-        // eslint-disable-next-line security/detect-object-injection
-        if (res.data.success) result = extractTransactionObject(res.data.transactions[index], index)
+        if (res.data.success) {
+          if (typeof index === 'number' && index >= 0 && index < res.data.transactions.length) {
+            // eslint-disable-next-line security/detect-object-injection
+            result = extractTransactionObject(res.data.transactions[index], index)
+          }
+        }
         else result = null
 
         const nodeUrl = config.explorerUrl
@@ -1948,8 +1952,12 @@ export const methods = {
         }
 
         let result
-        // eslint-disable-next-line security/detect-object-injection
-        if (res.data.success) result = extractTransactionObject(res.data.transactions[index], index)
+        if (res.data.success) {
+          if (typeof index === 'number' && index >= 0 && index < res.data.transactions.length) {
+            // eslint-disable-next-line security/detect-object-injection
+            result = extractTransactionObject(res.data.transactions[index], index)
+          }
+        }
         else result = null
 
         const nodeUrl = config.explorerUrl
