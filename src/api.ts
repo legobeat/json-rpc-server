@@ -1234,7 +1234,10 @@ export const methods = {
                 .then((res: TransactionInjectionOutcome) => res.nodeUrl)
                 .catch((e: TransactionInjectionOutcome) => e.nodeUrl)
               nonceTracker[String(sender)] = pendingTx.nonce
-              console.log(`Pending tx count for ${sender}: ${txMemPool[sender].length}`) // eslint-disable-line security/detect-object-injection
+              const hexAddressRegex = /^0x[a-fA-F0-9]+$/;
+              if (hexAddressRegex.test(sender)) {
+                console.log(`Pending tx count for ${sender}: ${txMemPool[sender].length}`) // eslint-disable-line security/detect-object-injection
+              }
               await sleep(500)
             }
           }
