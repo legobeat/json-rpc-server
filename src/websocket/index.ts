@@ -6,7 +6,7 @@ import * as crypto from 'crypto'
 import { CONFIG } from '../config'
 import { ipport } from '../server'
 import { evmLogProvider_ConnectionStream } from './log_server'
-import { subscription_details } from './clients'
+import { SubscriptionDetails } from './clients'
 
 interface Params {
   address?: string | string[]
@@ -126,7 +126,7 @@ export const onConnection = async (socket: WebSocket.WebSocket): Promise<void> =
               return topic?.toLowerCase()
             })
           }
-          const subscriptionDetails: subscription_details = {
+          const subscriptionDetails: SubscriptionDetails = {
             address: request.params[1].address as string[],
             topics: request.params[1].topics as string[],
           }

@@ -1,17 +1,17 @@
 import WebSocket from 'ws'
 
-export type subscription_details = {
+export type SubscriptionDetails = {
   address: string | string[]
   topics: string[]
 }
 class ClientList {
-  private list: Map<string, { socket: WebSocket.WebSocket; subscription_data: subscription_details }>
+  private list: Map<string, { socket: WebSocket.WebSocket; subscription_data: SubscriptionDetails }>
   public requestIdBySubscriptionId: Map<string, number>
   private indexedBySocket: Map<WebSocket.WebSocket, Set<string>>
 
   constructor() {
     this.indexedBySocket = new Map()
-    this.list = new Map<string, { socket: WebSocket.WebSocket; subscription_data: subscription_details }>()
+    this.list = new Map<string, { socket: WebSocket.WebSocket; subscription_data: SubscriptionDetails }>()
     this.requestIdBySubscriptionId = new Map()
 
     this.set = this.set.bind(this)
@@ -23,13 +23,13 @@ class ClientList {
   }
 
   getAll(): {
-    indexedById: Map<string, { socket: WebSocket.WebSocket; subscription_data: subscription_details }>
+    indexedById: Map<string, { socket: WebSocket.WebSocket; subscription_data: SubscriptionDetails }>
     indexedBySocket: Map<WebSocket.WebSocket, Set<string>>
   } {
     return { indexedById: this.list, indexedBySocket: this.indexedBySocket }
   }
 
-  getById(id: string): { socket: WebSocket.WebSocket; subscription_data: subscription_details } | null {
+  getById(id: string): { socket: WebSocket.WebSocket; subscription_data: SubscriptionDetails } | null {
     if (!this.list.has(id)) {
       return null
     }
@@ -46,7 +46,7 @@ class ClientList {
   set(
     id: string,
     socket: WebSocket.WebSocket,
-    subscription_data: subscription_details,
+    subscription_data: SubscriptionDetails,
     rpc_request_id: number
   ): void {
     this.requestIdBySubscriptionId.set(id, rpc_request_id)
