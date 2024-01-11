@@ -145,12 +145,18 @@ function isHex(str: string): boolean {
   return regexp.test(str)
 }
 
-function firstArg(args: RequestParamsLike): string {
-  if (Array.isArray(args)) {
-    return args[0] as string
-  } else {
-    throw new Error('Invalid arguments')
+// Utility function to ensure arguments are an array
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ensureArrayArgs(args: RequestParamsLike, callback: JSONRPCCallbackTypePlain): args is any[] {
+  if (!Array.isArray(args)) {
+    const error: JSONRPCError = {
+      code: -32602, // JSON-RPC error code for invalid params
+      message: 'Invalid params: non-array args',
+    }
+    callback(error, null)
+    return false
   }
+  return true
 }
 
 const filtersMap: Map<string, Types.InternalFilter> = new Map()
@@ -780,6 +786,7 @@ export const methods = {
     }
   },
   eth_getBalance: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getBalance'
     const ticket = crypto
       .createHash('sha1')
@@ -792,7 +799,7 @@ export const methods = {
 
     let address
     try {
-      address = firstArg(args)
+      address = args[0]
     } catch (e) {
       if (verbose) console.log('Unable to get address', e)
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
@@ -850,6 +857,7 @@ export const methods = {
     callback(null, result)
   },
   eth_getTransactionCount: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getTransactionCount'
     const ticket = crypto
       .createHash('sha1')
@@ -862,7 +870,7 @@ export const methods = {
 
     let address
     try {
-      address = firstArg(args)
+      address = args[0]
     } catch (e) {
       if (verbose) console.log('Unable to get address', e)
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
@@ -885,7 +893,7 @@ export const methods = {
 
     let nodeUrl
     try {
-      const address = firstArg(args)
+      const address = args[0]
       const res = await getAccount(address)
       const account = res.account
       nodeUrl = res.nodeUrl
@@ -967,6 +975,7 @@ export const methods = {
     args: RequestParamsLike,
     callback: JSONRPCCallbackTypePlain
   ) {
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getBlockTransactionCountByNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -977,7 +986,7 @@ export const methods = {
       console.log('Running eth_getBlockTransactionCountByNumber', args)
     }
 
-    let blockNumber = firstArg(args)
+    let blockNumber = args[0]
 
     if (blockNumber !== 'latest') blockNumber = parseInt(blockNumber, 16).toString()
     if (config.queryFromValidator && config.queryFromExplorer) {
@@ -1057,6 +1066,7 @@ export const methods = {
     callback(null, result)
   },
   eth_getCode: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getCode'
     const ticket = crypto
       .createHash('sha1')
@@ -1069,7 +1079,7 @@ export const methods = {
 
     let contractAddress
     try {
-      contractAddress = firstArg(args)
+      contractAddress = args[0]
     } catch (e) {
       console.log('Unable to get contract address', e)
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
@@ -1083,7 +1093,7 @@ export const methods = {
       return
     }
 
-    const code = await serviceValidator.getContractCode(firstArg(args))
+    const code = await serviceValidator.getContractCode(args[0])
     if (code) {
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
       callback(null, code)
@@ -1092,7 +1102,7 @@ export const methods = {
 
     let nodeUrl
     try {
-      const res = await getCode(firstArg(args))
+      const res = await getCode(args[0])
       const contractCode = res.contractCode
       nodeUrl = res.nodeUrl ? res.nodeUrl : undefined
 
@@ -1137,6 +1147,7 @@ export const methods = {
     callback(null, result)
   },
   eth_sendRawTransaction: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_sendRawTransaction'
     const ticket = crypto
       .createHash('sha1')
@@ -1152,11 +1163,6 @@ export const methods = {
     let txHash = ''
     let gasLimit = ''
     try {
-      if (!Array.isArray(args)) {
-        callback(new Error('non-array args'), null)
-        return
-      }
-
       const { isInternalTx } = args[0]
       let tx: TransactionData
 
@@ -1332,10 +1338,7 @@ export const methods = {
     }
   },
   eth_sendInternalTransaction: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_sendInternalTransaction'
     const ticket = crypto
       .createHash('sha1')
@@ -1406,10 +1409,7 @@ export const methods = {
     }
   },
   eth_call: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_call'
     const ticket = crypto
       .createHash('sha1')
@@ -1455,10 +1455,7 @@ export const methods = {
     }
   },
   eth_estimateGas: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_estimateGas'
     const ticket = crypto
       .createHash('sha1')
@@ -1554,10 +1551,7 @@ export const methods = {
     callback(null, result)
   },
   eth_getBlockByHash: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getBlockByHash'
     const ticket = crypto
       .createHash('sha1')
@@ -1581,10 +1575,7 @@ export const methods = {
     callback(null, result)
   },
   eth_getBlockByNumber: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getBlockByNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -1616,10 +1607,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: result ? true : false }, performance.now())
   },
   eth_getBlockReceipts: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getBlockReceipts'
     const ticket = crypto
       .createHash('sha1')
@@ -1661,10 +1649,7 @@ export const methods = {
     }
   },
   eth_feeHistory: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_feeHistory'
     const ticket = crypto
       .createHash('sha1')
@@ -1739,10 +1724,7 @@ export const methods = {
     }
   },
   eth_getTransactionByHash: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getTransactionByHash'
     const ticket = crypto
       .createHash('sha1')
@@ -1830,10 +1812,7 @@ export const methods = {
     args: RequestParamsLike,
     callback: JSONRPCCallbackTypePlain
   ) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getTransactionByBlockHashAndIndex'
     const ticket = crypto
       .createHash('sha1')
@@ -1902,10 +1881,7 @@ export const methods = {
     args: RequestParamsLike,
     callback: JSONRPCCallbackTypePlain
   ) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getTransactionByBlockNumberAndIndex'
     const ticket = crypto
       .createHash('sha1')
@@ -1970,10 +1946,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
   eth_getTransactionReceipt: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getTransactionReceipt'
     const ticket = crypto
       .createHash('sha1')
@@ -2179,10 +2152,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
   eth_uninstallFilter: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_uninstallFilter'
     const ticket = crypto
       .createHash('sha1')
@@ -2204,10 +2174,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
   eth_newFilter: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_newFilter'
     const ticket = crypto
       .createHash('sha1')
@@ -2249,10 +2216,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
   eth_getFilterChanges: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getFilterChanges'
     const ticket = crypto
       .createHash('sha1')
@@ -2332,10 +2296,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
   eth_getFilterLogs: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getFilterLogs'
     const ticket = crypto
       .createHash('sha1')
@@ -2376,10 +2337,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
   eth_getLogs: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getLogs'
     const ticket = crypto
       .createHash('sha1')
@@ -2483,10 +2441,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
   debug_traceTransaction: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'debug_traceTransaction'
     const ticket = crypto
       .createHash('sha1')
@@ -2514,10 +2469,7 @@ export const methods = {
     }
   },
   debug_traceBlockByHash: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'debug_traceBlockByHash'
     const ticket = crypto
       .createHash('sha1')
@@ -2580,10 +2532,7 @@ export const methods = {
     }
   },
   debug_traceBlockByNumber: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'debug_traceBlockByNumber'
     const ticket = crypto
       .createHash('sha1')
@@ -2652,10 +2601,7 @@ export const methods = {
     }
   },
   debug_storageRangeAt: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'debug_storageRangeAt'
     const ticket = crypto
       .createHash('sha1')
@@ -2691,10 +2637,7 @@ export const methods = {
     callback(null, { storage: {} })
   },
   debug_storageRangeAt2: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'debug_storageRangeAt2'
     const ticket = crypto
       .createHash('sha1')
@@ -2913,10 +2856,7 @@ export const methods = {
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
   eth_getAccessList: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     const api_name = 'eth_getAccessList'
     const ticket = crypto
       .createHash('sha1')
@@ -2960,10 +2900,7 @@ export const methods = {
     }
   },
   eth_subscribe: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     if (!CONFIG.websocket.enabled || !CONFIG.websocket.serveSubscriptions) {
       callback({ message: 'Subscription feature disabled' } as JSONRPCError, null)
       return
@@ -3004,10 +2941,7 @@ export const methods = {
   },
 
   eth_unsubscribe: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
-    if (!Array.isArray(args)) {
-      callback(new Error('non-array args'), null)
-      return
-    }
+    if (!ensureArrayArgs(args, callback)) return
     if (!CONFIG.websocket.enabled || !CONFIG.websocket.serveSubscriptions) {
       callback({ message: 'Subscription feature disabled' } as JSONRPCError, null)
       return
