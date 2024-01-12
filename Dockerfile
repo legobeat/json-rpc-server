@@ -14,15 +14,9 @@ WORKDIR /app
 
 COPY . .
 
-RUN \
-  --mount=type=cache,target=/root/.cache \
-  --mount=type=cache,target=/root/.npm \
-  <<EOF
-npm install
-npm install pm2 -g
-
-npm run compile
-EOF
+RUN npm install; \
+  npm install pm2 -g; \
+  npm run compile
 
 ENV NO_OF_RPC_SERVERS=1
 
