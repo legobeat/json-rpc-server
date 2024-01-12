@@ -72,7 +72,8 @@ export type TxStatus = {
   txHash: string
   raw?: string
   injected: boolean
-  accepted: boolean
+  // TODO: double check with team
+  accepted: TxStatusCode | boolean
   reason: string
   timestamp: number // if timestamp is not provided in the tx, maybe Date.now()
   ip?: string

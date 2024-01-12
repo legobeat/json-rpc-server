@@ -360,7 +360,7 @@ type ContractStorageAccountData = {
   ethAddress: string
   hash: string
   timestamp: number
-  value: {}
+  value: object
 }
 
 export type Account2 = {

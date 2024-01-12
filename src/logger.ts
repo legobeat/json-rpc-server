@@ -134,15 +134,9 @@ export function setupLogEvents(): void {
         detailedList.push({
           ...txStatus,
           type: type,
-<<<<<<< HEAD
           to: bufferToHex(tx.to ? tx.to.toBuffer() : Buffer.from('')),
           from: bufferToHex(tx.getSenderAddress().toBuffer()),
-          timestamp: txStatus.timestamp,
-=======
-          to: bufferToHex(tx.to),
-          from: bufferToHex(tx.getSenderAddress()),
           timestamp: txStatus.timestamp.toString(),
->>>>>>> 38e71d1 (Fix type error and warnings)
           nodeUrl: txStatus.nodeUrl,
         })
       } catch (e) {
