@@ -37,6 +37,7 @@ import { collectorAPI } from './external/Collector'
 import { serviceValidator } from './external/ServiceValidator'
 import { JSONRPCCallbackTypePlain, RequestParamsLike, JSONRPCError } from 'jayson'
 import { readableBlock, completeReadableReceipt, readableTransaction } from './external/Collector'
+import { OriginalTxData, TransactionFromArchiver } from './types'
 
 export const verbose = config.verbose
 const MAX_ESTIMATE_GAS = new BN(30_000_000)
@@ -107,62 +108,6 @@ interface TransactionInjectionOutcome {
   success: boolean
   reason: string
   status: number
-}
-
-interface OriginalTxData {
-  txId: string
-  timestamp: number
-  cycle: number
-  originalTxData: {
-    tx: {
-      raw: string
-      timestamp: number
-    }
-    timestampReceipt?: {
-      cycleCounter: number
-      cycleMarker: string
-      sign: {
-        owner: string
-        sig: string
-      }
-      timestamp: number
-      txId: string
-    }
-  }
-  sign: {
-    owner: string
-    sig: string
-  }
-}
-
-export interface TransactionResult {
-  txId: string
-  accountId: string
-  timestamp: number
-  cycleNumber: number
-  data: {
-    readableReceipt: ReadableReceipt
-  }
-  result: {
-    txIdShort: string
-    txResult: string
-  }
-  originalTxData: OriginalTxData
-  sign: {
-    owner: string
-    sig: string
-  }
-}
-
-interface ReadableReceipt {
-  status: number
-  from: string
-  to: string
-  nonce: string
-  value: string
-  data: string
-  reason: string
-  gasUsed: string
 }
 
 function hexStrToInt(hexStr: string): number {
@@ -1017,7 +962,8 @@ export const methods = {
 
     let blockNumber = args[0]
 
-    if (blockNumber !== 'latest' && blockNumber !== 'earliest') blockNumber = parseInt(blockNumber, 16).toString()
+    if (blockNumber !== 'latest' && blockNumber !== 'earliest')
+      blockNumber = parseInt(blockNumber, 16).toString()
     if (config.queryFromValidator && config.queryFromExplorer) {
       const explorerUrl = config.explorerUrl
       if (blockNumber === 'latest' || blockNumber === 'earliest') {
@@ -1193,7 +1139,7 @@ export const methods = {
     let gasLimit = ''
     try {
       const { isInternalTx } = args[0]
-      let tx: TransactionData
+      let tx: OriginalTxData
 
       if (isInternalTx === true) {
         console.log('We are processing an internal tx')
@@ -1234,7 +1180,7 @@ export const methods = {
                 .then((res: TransactionInjectionOutcome) => res.nodeUrl)
                 .catch((e: TransactionInjectionOutcome) => e.nodeUrl)
               nonceTracker[String(sender)] = pendingTx.nonce
-              const hexAddressRegex = /^0x[a-fA-F0-9]+$/;
+              const hexAddressRegex = /^0x[a-fA-F0-9]+$/
               if (hexAddressRegex.test(sender)) {
                 console.log(`Pending tx count for ${sender}: ${txMemPool[sender].length}`) // eslint-disable-line security/detect-object-injection
               }
@@ -1335,8 +1281,8 @@ export const methods = {
 
           return fetchTxReceiptFromArchiver(txHash)
         })
-        .then((transaction: TransactionResult) => {
-          if (!transaction?.data?.readableReceipt) {
+        .then((transaction: TransactionFromArchiver) => {
+          if (!('readableReceipt' in transaction.data)) {
             throw new Error(`Gas verification error: Unable to fetch transaction receipt for ${txHash}`)
           }
 
@@ -1888,8 +1834,7 @@ export const methods = {
             // eslint-disable-next-line security/detect-object-injection
             result = extractTransactionObject(res.data.transactions[index], index)
           }
-        }
-        else result = null
+        } else result = null
 
         const nodeUrl = config.explorerUrl
         if (verbose) console.log('TRANSACTION DETAIL', result)
@@ -1960,8 +1905,7 @@ export const methods = {
             // eslint-disable-next-line security/detect-object-injection
             result = extractTransactionObject(res.data.transactions[index], index)
           }
-        }
-        else result = null
+        } else result = null
 
         const nodeUrl = config.explorerUrl
         if (verbose) console.log('TRANSACTION DETAIL', result)
