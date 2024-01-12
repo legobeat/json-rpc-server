@@ -72,7 +72,7 @@ export type BlockFilter = BaseFilterArgs & {
 }
 export type InternalFilter = {
   type: FilterTypes
-  updates: unknown[]
+  updates: string[]
   unsubscribe: () => void
   filter: LogFilter | BlockFilter | PendingTransactionFilter
 }
