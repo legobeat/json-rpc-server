@@ -121,6 +121,7 @@ type ReadableReceipt = {
   transactionHash: string;
   transactionIndex: string;
   value: string;
+  reason: string;
 };
 
 type Log = {
