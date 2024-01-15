@@ -2926,6 +2926,28 @@ export const methods = {
     countSuccessResponse(api_name, 'success', 'TBD')
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
+  dao_getProposals: async function (args: any, callback: any) {
+    console.log('Running dao_getProposals', args)
+    const api_name = 'dao_getProposals'
+    logEventEmitter.emit('fn_start', api_name, performance.now())
+    const res = await requestWithRetry(RequestMethod.Get, `/dao/proposals`)
+    if (res.data && res.data.error) {
+      if (verbose) console.log(`dao_getProposals from validator error: ${res.data.error} `)
+    }
+    callback(null, res.data)
+    logEventEmitter.emit('fn_end', api_name, { success: true }, performance.now())
+  },
+  dao_getParameters: async function (args: any, callback: any) {
+    console.log('Running dao_getParameter', args)
+    const api_name = 'dao_getParameters'
+    logEventEmitter.emit('fn_start', api_name, performance.now())
+    const res = await requestWithRetry(RequestMethod.Get, `/dao/network/parameters`)
+    if (res.data && res.data.error) {
+      if (verbose) console.log(`dao_getParameters from validator error: ${res.data.error} `)
+    }
+    callback(null, res.data)
+    logEventEmitter.emit('fn_end', api_name, { success: true }, performance.now())
+  },
   debug_traceTransaction: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
     const api_name = 'debug_traceTransaction'
     if (!ensureArrayArgs(args, callback)) {
