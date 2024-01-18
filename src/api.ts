@@ -1937,28 +1937,26 @@ export const methods = {
     try{
       blockHash = args[0];
       if (!this.isTxOrBlockHash(blockHash)) {
-        throw new Error("Invalid Block Hash.")
+        throw new Error('Invalid Block Hash.')
       }
-    }
-    catch(e){
-      if (verbose) console.log('Unable to get block hash or block hash is invalid', e);
-      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now());
-      callback(e,null);
-      return;
-
+    } catch (e) {
+      if (verbose) console.log('Unable to get block hash or block hash is invalid', e)
+      logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+      callback(e, null)
+      return
     }
     // Validate the block hash format
   
     try {
       // getCurrentBlock handles errors internally, but we should still catch any that bubble up
-      result = await collectorAPI.getBlock(blockHash, 'hash', args[1]);
+      result = await collectorAPI.getBlock(blockHash, 'hash', args[1])
       if (!result) {
         // The transaction_detail_flag is not used when querying from the validator
-        const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${blockHash}`);
-        result = res.data.block;
+        const res = await requestWithRetry(RequestMethod.Get, `/eth_getBlockByHash?blockHash=${blockHash}`)
+        result = res.data.block
       }
-      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now());
-      callback(null, result);
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, result)
     } catch (error) {
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now());
       callback(error, null);
@@ -2174,11 +2172,10 @@ export const methods = {
     try{
       txHash = args[0]
       if (!this.isTxOrBlockHash(txHash)) {
-        throw new Error("Invalid Transaction Hash");
+        throw new Error('Invalid Transaction Hash')
       }
-    }
-    catch(e){
-      if (verbose) console.log('Unable to get transaction hash or invalid transaction hash', e);
+    } catch (e) {
+      if (verbose) console.log('Unable to get transaction hash or invalid transaction hash', e)
       logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
       callback({ message: 'Invalid transaction hex string' } as JSONRPCError, null)
       countFailedResponse(api_name, 'invalid transaction hex string')
@@ -2443,16 +2440,15 @@ export const methods = {
       let res
       let result
       let txHash
-      try{
+      try {
         txHash = args[0]
         if (!this.isTxOrBlockHash(txHash)) {
-          throw new Error("Invalid Transaction Hash");
+          throw new Error('Invalid Transaction Hash')
         }
-      }
-      catch(e){
-        if (verbose) console.log('Unable to get transaction hash or invalid transaction hash', e);
+      } catch (e) {
+        if (verbose) console.log('Unable to get transaction hash or invalid transaction hash', e)
         logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
-        callback(e,null)
+        callback(e, null)
         return
       }
       result = await collectorAPI.getTransactionReceipt(txHash)
@@ -3680,16 +3676,16 @@ export const methods = {
       // subscription failed, will not be tracking it
     }
   },
-  isTxOrBlockHash(txOrBlockHash:string){
+  isTxOrBlockHash(txOrBlockHash: string) {
     if (!txOrBlockHash || !isHexString(txOrBlockHash) || txOrBlockHash.length !== 66) {
-      return false;
+      return false
     }
-    return true;
+    return true
   },
-  isEthAddress(address:string){
+  isEthAddress(address: string) {
     if (!address || !isValidAddress(address) || address.length !== 42) {
-      return false;
+      return false
     }
-    return true;
-  }
+    return true
+  },
 }
