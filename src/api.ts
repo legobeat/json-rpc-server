@@ -790,20 +790,27 @@ export const methods = {
     } catch (e) {
       if (verbose) console.log('Unable to get address', e)
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-      callback(null, '0x')
+      callback({ code: -32000, message: 'Unable to get address' }, null)
       return
     }
     if (!isValidAddress(address)) {
       if (verbose) console.log('Invalid address', address)
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-      callback(null, '0x')
+      callback({ code: -32000, message: 'Invalid address' }, null)
       return
     }
 
-    let balance = await serviceValidator.getBalance(address)
-    if (balance) {
+    let balance
+    try {
+      balance = await serviceValidator.getBalance(address)
+      if (balance) {
+        logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+        callback(null, intStringToHex(balance))
+        return
+      }
+    } catch (e) {
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-      callback(null, intStringToHex(balance))
+      callback({ code: 503, message: 'unable to get balanace' }, null)
       return
     }
 
