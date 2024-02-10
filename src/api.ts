@@ -712,12 +712,12 @@ export const methods = {
       console.log('Running eth_gasPrice', args)
     }
 
-    const gasPrice = await serviceValidator.getGasPrice()
-    if (gasPrice) {
-      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-      callback(null, gasPrice)
-      return
-    }
+    // const gasPrice = await serviceValidator.getGasPrice()
+    //if (gasPrice) {
+      //logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      //callback(null, gasPrice)
+      //return
+    //}
 
     const fallbackGasPrice = '0x3f84fc7516' // 1 Gwei
     try {
@@ -801,17 +801,20 @@ export const methods = {
     }
 
     let balance
-    try {
-      balance = await serviceValidator.getBalance(address)
-      if (balance) {
+
+    if (CONFIG.serviceValidatorSourcing.enabled) {
+      try {
+        balance = await serviceValidator.getBalance(address)
+        if (balance) {
+          logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+          callback(null, intStringToHex(balance))
+          return
+        }
+      } catch (e) {
         logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-        callback(null, intStringToHex(balance))
+        callback({ code: 503, message: 'unable to get balanace' }, null)
         return
       }
-    } catch (e) {
-      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
-      callback({ code: 503, message: 'unable to get balanace' }, null)
-      return
     }
 
     balance = '0x0'
