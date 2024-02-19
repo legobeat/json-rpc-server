@@ -24,6 +24,7 @@ import {
   hexToBN,
   fetchTxReceiptFromArchiver,
   calculateContractStorageAccountId,
+  getSyncTime,
 } from './utils'
 import crypto from 'crypto'
 import { logEventEmitter } from './logger'
@@ -1368,7 +1369,7 @@ export const methods = {
       .update(api_name + Math.random() + Date.now())
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
-    const now = Date.now()
+    const now = getSyncTime()
     if (verbose) {
       console.log('Sending raw tx to /inject endpoint', new Date(now), now)
       console.log('Running sendRawTransaction', args)
