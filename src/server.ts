@@ -77,6 +77,16 @@ app.use(cors({ methods: ['POST'] }))
 app.use(express.json())
 app.use(cookieParser())
 
+// Logic to add security headers
+app.use((req, res, next) => {
+  res.append('X-Content-Type-Options', 'nosniff')
+  res.append('poweredByHeader', 'false')
+  res.append('Permissions-Policy', 'accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(), camera=(), cross-origin-isolated=(), display-capture=(), document-domain=(), encrypted-media=(), execution-while-not-rendered=(), execution-while-out-of-viewport=(), fullscreen=(), geolocation=(), gyroscope=(), keyboard-map=(), magnetometer=(), microphone=(), midi=(), navigation-override=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), usb=(), web-share=(), xr-spatial-tracking=(), clipboard-read=(), clipboard-write=(), gamepad=(), speaker-selection=(), conversion-measurement=(), focus-without-user-activation=(), hid=(), idle-detection=(), interest-cohort=(), serial=(), sync-script=(), trust-token-redemption=(), unload=(), window-placement=(), vertical-scroll=()')
+  res.append('X-Frame-Options', 'SAMEORIGIN')
+  res.append('Content-Security-Policy', 'self')
+  next()
+})
+
 if (config.dashboard.enabled && config.dashboard.dist_path) {
   const clientDirectory =
     config.dashboard.dist_path[0] === '/'
