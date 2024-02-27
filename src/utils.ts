@@ -62,71 +62,90 @@ export enum RequestMethod {
   Post = 'post',
 }
 
-// if tryInfinate value is true, it'll keep pinging the archiver unitl it responds infinitely, this is useful for first time updating NodeList
-// linear complexity, O(n) where n is the amount of nodes object { ip: string, port number }
-export async function updateNodeList(tryInfinate = false): Promise<void> {
-  if (!healthyArchivers.length) await checkArchiverHealth()
-  console.log(`Updating NodeList from ${getArchiverUrl().url}`)
+async function fetchNodeListFromArchiver(url: string, tryInfinite: boolean): Promise<Node[] | null> {
+  const nRetry = tryInfinite ? -1 : 0 // infinitely retry or no retries
+  try {
+    const res = await requestWithRetry(
+      RequestMethod.Get,
+      `${url}/full-nodelist?activeOnly=true`,
+      {},
+      nRetry,
+      true
+    )
 
+    return res.data.nodeList
+  } catch (error) {
+    console.error(`Failed to fetch node list from ${url}:`, error)
+    return null
+  }
+}
+
+function compareNodeLists(list1: Node[], list2: Node[]): boolean {
+  const set1 = new Set(list1.map((node) => `${node.ip}:${node.port}`))
+  const set2 = new Set(list2.map((node) => `${node.ip}:${node.port}`))
+  return set1.size === set2.size && [...set1].every((item) => set2.has(item))
+}
+
+async function validateNodes(nodes: Node[]): Promise<Node[]> {
+  let validatedNodes: Node[] = []
+  let count = 0
+  for (const node of nodes) {
+    count++
+    try {
+      const res = await axios({
+        method: 'GET',
+        url: `http://${node.ip}:${node.port}/nodeinfo`,
+        timeout: 1000,
+      })
+      if (res.status === 200 && res.data.nodeInfo && res.data.nodeInfo.status === 'active') {
+        validatedNodes.push(node)
+      }
+    } catch (error) {
+      console.log(`No. ${count} this node is offline`, node.ip, node.port)
+    }
+  }
+  return validatedNodes
+}
+
+export async function updateNodeList(tryInfinite = false): Promise<void> {
+  if (!healthyArchivers.length) await checkArchiverHealth()
+  const primaryArchiver = getArchiverUrl()
+  console.log(`Updating NodeList from ${primaryArchiver.url}`)
   console.time('nodelist_update')
-  const nRetry = tryInfinate ? -1 : 0 // infinitely retry or no retries
   if (config.askLocalHostForArchiver === true) {
     if (gotArchiver === false) {
       gotArchiver = true
       //TODO query a localhost (or other) node or a valid archiver IP
     }
   }
+  const secondaryArchivers = healthyArchivers.filter((archiver) => archiver.url !== primaryArchiver.url)
+  const randomIndex = Math.floor(Math.random() * secondaryArchivers.length)
+  const secondaryArchiver = secondaryArchivers[randomIndex]
 
-  const res = await requestWithRetry(
-    RequestMethod.Get,
-    `${getArchiverUrl().url}/full-nodelist?activeOnly=true`,
-    {},
-    nRetry,
-    true
-  )
+  const primaryNodeList = await fetchNodeListFromArchiver(primaryArchiver.url, tryInfinite)
+  const secondaryNodeList = secondaryArchiver
+    ? await fetchNodeListFromArchiver(secondaryArchiver.url, tryInfinite)
+    : null
 
-  const nodes = res.data.nodeList // <-
-  nodeListMap = new Map() // clean old nodelist map
-
-  if (nodes.length > 0) {
-    if (nodes[0].ip === 'localhost' || nodes[0].ip === '127.0.0.1') {
-      nodes.forEach((node: Node) => {
-        node.ip = getArchiverUrl().ip
-      })
+  if (primaryNodeList) {
+    let listsMatch = true
+    if (secondaryNodeList) {
+      listsMatch = compareNodeLists(primaryNodeList, secondaryNodeList)
     }
-    if (config.filterDeadNodesFromArchiver) {
-      const allNodes = [...nodes]
-      const onlineNodes = []
-      let count = 0
-      for (const node of allNodes) {
-        count++
-        try {
-          const res = await axios({
-            method: 'GET',
-            url: `http://${node.ip}:${node.port}/nodeinfo`,
-            timeout: 1000,
-          })
-          if (res.status !== 200) continue
-          if (res.data.nodeInfo && res.data.nodeInfo.status === 'active') {
-            console.log(`No. ${count} this node is ONLINE`, node.ip, node.port)
-            onlineNodes.push(node)
-            nodeListMap.set(`${node.ip}:${node.port}`, node)
-          }
-        } catch (e) {
-          console.log(`No. ${count} this node is offline`, node.ip, node.port)
-          continue
-        }
-      }
-      nodeList = [...onlineNodes]
-      if (verbose)
-        console.log(`Nodelist is updated. All nodes ${allNodes.length}, online nodes ${onlineNodes.length}`)
-    } else {
-      for (const node of nodes) {
+
+    if (listsMatch) {
+      const validatedNodes = await validateNodes(primaryNodeList)
+      for (const node of validatedNodes) {
         nodeListMap.set(`${node.ip}:${node.port}`, node)
       }
-      nodeList = [...nodes]
+      console.log('Node list updated successfully.')
+    } else {
+      console.error('Node lists from primary and secondary archivers do not match.')
     }
+  } else {
+    console.error('Failed to fetch node list from primary archiver.')
   }
+
   console.timeEnd('nodelist_update')
 }
 
