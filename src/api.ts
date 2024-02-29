@@ -2926,7 +2926,7 @@ export const methods = {
     countSuccessResponse(api_name, 'success', 'TBD')
     logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
   },
-  dao_getProposals: async function (args: any, callback: any) {
+  dao_proposals: async function (args: any, callback: any) {
     console.log('Running dao_getProposals', args)
     const api_name = 'dao_getProposals'
     logEventEmitter.emit('fn_start', api_name, performance.now())
@@ -2937,7 +2937,7 @@ export const methods = {
     callback(null, res.data)
     logEventEmitter.emit('fn_end', api_name, { success: true }, performance.now())
   },
-  dao_getParameters: async function (args: any, callback: any) {
+  dao_parameters: async function (args: any, callback: any) {
     console.log('Running dao_getParameter', args)
     const api_name = 'dao_getParameters'
     logEventEmitter.emit('fn_start', api_name, performance.now())
@@ -2946,6 +2946,30 @@ export const methods = {
       if (verbose) console.log(`dao_getParameters from validator error: ${res.data.error} `)
     }
     callback(null, res.data)
+    logEventEmitter.emit('fn_end', api_name, { success: true }, performance.now())
+  },
+  dao_counts: async function (args: any, callback: any) {
+    const countType = args?.[0] === 'dev' ? '/dev' : ''
+    console.log('Running dao_counts', args)
+    const api_name = 'dao_counts'
+    logEventEmitter.emit('fn_start', api_name, performance.now())
+    const issuesCountRes = await requestWithRetry(RequestMethod.Get, `/dao/issues${countType}/count`)
+    const proposalCountRes = await requestWithRetry(RequestMethod.Get, `/dao/proposals${countType}/count`)
+    if (issuesCountRes.data && issuesCountRes.data.error) {
+      if (verbose)
+        console.log(`dao_counts from validator error (/dao/issues/dev/count): ${issuesCountRes.data.error} `)
+    }
+    if (proposalCountRes.data && proposalCountRes.data.error) {
+      if (verbose)
+        console.log(
+          `dao_counts from validator error (/dao/proposals/dev/count): ${proposalCountRes.data.error} `
+        )
+    }
+    const response = {
+      issueCount: issuesCountRes.data.count,
+      proposalCount: proposalCountRes.data.count,
+    }
+    callback(null, response)
     logEventEmitter.emit('fn_end', api_name, { success: true }, performance.now())
   },
   debug_traceTransaction: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
