@@ -63,7 +63,7 @@ type Config = {
   adaptiveRejection: boolean
   filterDeadNodesFromArchiver: boolean
   verbose: boolean
-
+  verboseRequestWithRetry: boolean
   dashboard: {
     enabled: boolean
     dist_path: string
@@ -112,7 +112,7 @@ export const CONFIG: Config = {
   explorerUrl: process.env.EXPLORER_URL || 'http://127.0.0.1:6001',
   queryFromExplorer: false,
   generateTxTimestamp: true,
-  nodelistRefreshInterval: 5000,
+  nodelistRefreshInterval: 30000,
   defaultRequestRetry: 5,
   gasEstimateMethod: 'serviceValidator', //serviceValidator or replayEngine or validator
   gasEstimateInvalidationIntervalInMs: 1000 * 60 * 60 * 2, // 2 hours
@@ -121,7 +121,7 @@ export const CONFIG: Config = {
   defaultRequestTimeout: {
     default: 2000,
     contract: 7000,
-    account: 5000,
+    account: 10000,
     full_nodelist: 10000,
   },
   recordTxStatus: false,
@@ -145,6 +145,7 @@ export const CONFIG: Config = {
   adaptiveRejection: true,
   filterDeadNodesFromArchiver: false,
   verbose: false,
+  verboseRequestWithRetry: false,
   dashboard: {
     enabled: true,
     // relative path will work but absolute path is recommended

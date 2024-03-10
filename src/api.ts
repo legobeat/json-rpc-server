@@ -66,6 +66,7 @@ const nonceTracker: {
 } = {}
 let totalResult = 0
 let nonceFailCount = 0
+let precrackFail = 0
 
 type InjectResponse = {
   success: boolean
@@ -472,6 +473,7 @@ function injectAndRecordTx(
   const { raw } = tx
   const { baseUrl } = getBaseUrl()
   totalResult += 1
+  const startTime = Date.now()
   return new Promise((resolve, reject) => {
     axios
       .post(`${baseUrl}/inject`, tx)
@@ -485,8 +487,8 @@ function injectAndRecordTx(
 
           countInjectTxRejections(injectResult.reason)
         }
-
-        console.log('inject tx result', txHash, injectResult)
+        const totalTime = Date.now() - startTime
+        console.log('inject tx result', txHash, injectResult, `totalTime : ${totalTime}`)
         console.log(`Total count: ${totalResult}, Nonce fail count: ${nonceFailCount}`)
         if (config.recordTxStatus === false) {
           return resolve({
@@ -1891,7 +1893,7 @@ export const methods = {
 
     result = await collectorAPI.getBlock(args[0], 'hex_num', args[1])
     if (!result) {
-      console.log(blockNumber, args[0])
+      if (verbose) console.log('eth_getBlockByNumber !result' ,blockNumber, args[0])
       const res = await requestWithRetry(
         RequestMethod.Get,
         `/eth_getBlockByNumber?blockNumber=${blockNumber}`
