@@ -458,7 +458,7 @@ export function recordTxStatus(txStatus: TxStatus): void {
   }
 }
 
-function injectAndRecordTx(
+async function injectAndRecordTx(
   txHash: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tx: any,
@@ -474,6 +474,40 @@ function injectAndRecordTx(
   const { baseUrl } = getBaseUrl()
   totalResult += 1
   const startTime = Date.now()
+  ////// get access list to use as warmupdata 
+  let nodeUrl
+  let accessList = null
+  try {
+    const callObj = tx //?
+    const res = await requestWithRetry(RequestMethod.Post, `/contract/accesslist`, callObj)
+    nodeUrl = res.data.nodeUrl
+    if (verbose) console.log('contract eth_getAccessList res.data', callObj, res.data.nodeUrl, res.data)
+    if (res.data == null || res.data.accessList == null) {
+      //logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+      //callback(errorBusy)
+      countFailedResponse('warmup-access-list', 'no accessList')
+      //return
+    } else {
+      accessList = res.data.accessList
+      if (verbose)
+        console.log('predicted accessList from', res.data.nodeUrl, JSON.stringify(res.data.accessList))
+      //logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
+      //callback(null, res.data.accessList)
+      countSuccessResponse('warmup-access-list', 'success', 'TBD')      
+    }
+  } catch (e) {
+    console.log(`Error while making an eth call`, e)
+    //logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+    //callback(errorBusy)
+    countFailedResponse('warmup-access-list', 'exception in /contract/accesslist')
+  }
+
+  let warmupList = null
+  if(accessList != null){
+
+    warmupList = { accessList: accessList.accessList, codeHashes: accessList.codeHashes}
+  }
+
   return new Promise((resolve, reject) => {
     axios
       .post(`${baseUrl}/inject`, tx)
@@ -1430,7 +1464,7 @@ export const methods = {
                 return
               }
               console.log(`Injecting pending tx in the mem pool`, pendingTx.nonce)
-              nodeUrl = injectAndRecordTx(txHash, pendingTx.tx, args)
+              nodeUrl = await injectAndRecordTx(txHash, pendingTx.tx, args)
                 .then((res: TransactionInjectionOutcome) => res.nodeUrl)
                 .catch((e: TransactionInjectionOutcome) => e.nodeUrl)
               nonceTracker[String(sender)] = pendingTx.nonce
