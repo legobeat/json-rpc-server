@@ -1,9 +1,10 @@
 {
   "archivers": [
     {
-      "ip": "172.233.176.64",
+      "ip": "127.0.0.1",
       "port": "4000",
-      "publicKey": "f8452228fa67578d6957392858fbbe3545ab98dbbc277e9b8b9f7a0f5177ca36"
+      "publicKey": "758b1c119412298802cd28dbfa394cdfeecc4074492d60844cc192d632d84de3"
     }
   ]
 }
+
