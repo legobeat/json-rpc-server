@@ -225,7 +225,7 @@ export async function requestWithRetry(
     }
     const timeout = getTimeout(route)
     try {
-      if (verboseRequestWithRetry) console.log(`timeout for ${route} is ${timeout}`)
+      if (verboseRequestWithRetry && verbose) console.log(`timeout for ${route} is ${timeout}`)
       const queryStartTime = Date.now()
       const res = await axios({
         method,
@@ -235,7 +235,7 @@ export async function requestWithRetry(
       })
       if (res.status === 200 && !res.data.error) {
         const totalTime = Date.now() - queryStartTime
-        if (verbose) console.log(
+        if (verboseRequestWithRetry) console.log(
           `success:  route: ${route}`,
           'totalTime',
           totalTime
@@ -264,7 +264,7 @@ export async function requestWithRetry(
       if (shouldAddToBadNodeList && nodeIpPort && badNodePercentage < 2 / 3) {
         // don't add to bad list if 2/3 of nodes are already bad
         badNodesMap.set(nodeIpPort, Date.now())
-        if (verboseRequestWithRetry) console.log(`Adding node to bad nodes map: ${nodeIpPort}, total bad nodes: ${badNodesMap.size}`)
+        if (verboseRequestWithRetry && verbose) console.log(`Adding node to bad nodes map: ${nodeIpPort}, total bad nodes: ${badNodesMap.size}`)
       }
     }
 
