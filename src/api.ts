@@ -474,43 +474,61 @@ async function injectAndRecordTx(
   const { baseUrl } = getBaseUrl()
   totalResult += 1
   const startTime = Date.now()
-  ////// get access list to use as warmupdata 
-  let nodeUrl
-  let accessList = null
-  try {
-    const callObj = tx //?
-    const res = await requestWithRetry(RequestMethod.Post, `/contract/accesslist`, callObj)
-    nodeUrl = res.data.nodeUrl
-    if (verbose) console.log('contract eth_getAccessList res.data', callObj, res.data.nodeUrl, res.data)
-    if (res.data == null || res.data.accessList == null) {
+
+  let warmupList:any = null
+  let usingWarmup = false
+  if(config.aalgWarmup){
+    ////// get access list to use as warmupdata 
+    let nodeUrl
+    let accessList = null
+    try {
+      const callObj = tx //?
+      const res = await requestWithRetry(RequestMethod.Post, `/contract/accesslist`, callObj)
+      nodeUrl = res.data.nodeUrl
+      if (verbose) console.log('contract eth_getAccessList res.data', callObj, res.data.nodeUrl, res.data)
+      if (res.data == null || res.data.accessList == null) {
+        //logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
+        //callback(errorBusy)
+        countFailedResponse('warmup-access-list', 'no accessList')
+        console.log('warmup-access-list', 'no accessList')
+        //return
+      } else {
+        accessList = res.data.accessList
+        //if (verbose)
+          console.log('predicted accessList from', res.data.nodeUrl, JSON.stringify(res.data.accessList))
+        //logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
+        //callback(null, res.data.accessList)
+        countSuccessResponse('warmup-access-list', 'success', 'TBD') 
+        //console.log('warmup-access-list', 'no accessList')     
+      }
+    } catch (e) {
+      console.log(`Error while making an eth call`, e)
       //logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
       //callback(errorBusy)
-      countFailedResponse('warmup-access-list', 'no accessList')
-      //return
-    } else {
-      accessList = res.data.accessList
-      if (verbose)
-        console.log('predicted accessList from', res.data.nodeUrl, JSON.stringify(res.data.accessList))
-      //logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
-      //callback(null, res.data.accessList)
-      countSuccessResponse('warmup-access-list', 'success', 'TBD')      
+      countFailedResponse('warmup-access-list', 'exception in /contract/accesslist')
+      console.log('warmup-access-list', 'exception in /contract/accesslist', e) 
     }
-  } catch (e) {
-    console.log(`Error while making an eth call`, e)
-    //logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
-    //callback(errorBusy)
-    countFailedResponse('warmup-access-list', 'exception in /contract/accesslist')
+
+    if(accessList != null){
+      warmupList = { accessList: accessList.accessList, codeHashes: accessList.codeHashes}
+      countSuccessResponse('warmup-access-list', 'usingWarmup', `accessList ${warmupList.accessList.length} codeHashes ${warmupList.codeHashes.length}`) 
+      usingWarmup = true
+    }    
   }
 
-  let warmupList = null
-  if(accessList != null){
 
-    warmupList = { accessList: accessList.accessList, codeHashes: accessList.codeHashes}
+  let  injectEndpoint = `inject`
+  let  injectPayload = tx
+  if(usingWarmup){
+    injectEndpoint = `inject-with-warmup`
+    injectPayload = {tx, warmupList}
   }
+
+  console.log('inject', injectEndpoint, 'usingWarmup', usingWarmup)
 
   return new Promise((resolve, reject) => {
     axios
-      .post(`${baseUrl}/inject`, tx)
+      .post(`${baseUrl}/${injectEndpoint}`, injectPayload)
       .then((response) => {
         const injectResult: InjectResponse = response.data
 
@@ -565,7 +583,8 @@ async function injectAndRecordTx(
           reject({ nodeUrl: baseUrl, error: 'Unable inject transaction to the network' })
         }
       })
-      .catch(() => {
+      .catch((reason) => {
+        console.log('inject catch', reason)
         countInjectTxRejections('Caught Exception')
         if (config.recordTxStatus)
           recordTxStatus({

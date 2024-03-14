@@ -32,6 +32,8 @@ type Config = {
   nodelistRefreshInterval: number
   defaultRequestRetry: number
   defaultRequestTimeout: RequestTimeout
+  aalgWarmup: boolean
+  aalgWarmupServiceTPS: number
   recordTxStatus: boolean
   rateLimit: boolean
   staticGasEstimate?: string
@@ -124,6 +126,8 @@ export const CONFIG: Config = {
     account: 10000,
     full_nodelist: 10000,
   },
+  aalgWarmup: false,
+  aalgWarmupServiceTPS: 10,
   recordTxStatus: false,
   rateLimit: false,
   rateLimitOption: {
