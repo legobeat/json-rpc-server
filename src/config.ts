@@ -66,6 +66,7 @@ type Config = {
   filterDeadNodesFromArchiver: boolean
   verbose: boolean
   verboseRequestWithRetry: boolean
+  verboseAALG: boolean
   dashboard: {
     enabled: boolean
     dist_path: string
@@ -126,7 +127,7 @@ export const CONFIG: Config = {
     account: 10000,
     full_nodelist: 10000,
   },
-  aalgWarmup: false,
+  aalgWarmup: true,
   aalgWarmupServiceTPS: 10,
   recordTxStatus: false,
   rateLimit: false,
@@ -150,6 +151,7 @@ export const CONFIG: Config = {
   filterDeadNodesFromArchiver: false,
   verbose: false,
   verboseRequestWithRetry: false,
+  verboseAALG: true,
   dashboard: {
     enabled: true,
     // relative path will work but absolute path is recommended

@@ -45,6 +45,7 @@ import { RLP } from '@ethereumjs/rlp'
 import { nestedCountersInstance } from './utils/nestedCounters'
 
 export const verbose = config.verbose
+export const verboseAALG = config.verboseAALG
 const MAX_ESTIMATE_GAS = new BN(30_000_000)
 
 const lastCycleCounter = '0x0'
@@ -478,44 +479,39 @@ async function injectAndRecordTx(
   let warmupList:any = null
   let usingWarmup = false
   if(config.aalgWarmup){
-    ////// get access list to use as warmupdata 
+    // get access list to use as warmupdata 
     let nodeUrl
-    let accessList = null
+    let accessListResp = null
     try {
-      const callObj = tx //?
+      const callObj = tx
       const res = await requestWithRetry(RequestMethod.Post, `/contract/accesslist`, callObj)
       nodeUrl = res.data.nodeUrl
-      if (verbose) console.log('contract eth_getAccessList res.data', callObj, res.data.nodeUrl, res.data)
+      if (verboseAALG && verbose) console.log('warmup-access-list eth_getAccessList res.data', callObj, res.data.nodeUrl, res.data)
       if (res.data == null || res.data.accessList == null) {
-        //logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
-        //callback(errorBusy)
         countFailedResponse('warmup-access-list', 'no accessList')
-        console.log('warmup-access-list', 'no accessList')
-        //return
+        if(verboseAALG) console.log('warmup-access-list', 'no accessList', txHash)
       } else {
-        accessList = res.data.accessList
-        //if (verbose)
-          console.log('predicted accessList from', res.data.nodeUrl, JSON.stringify(res.data.accessList))
-        //logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: true }, performance.now())
-        //callback(null, res.data.accessList)
-        countSuccessResponse('warmup-access-list', 'success', 'TBD') 
-        //console.log('warmup-access-list', 'no accessList')     
+        accessListResp = res.data
+        if(verboseAALG) console.log(`inject: predicted accessList for ${txHash} from`, res.data.nodeUrl, JSON.stringify(res.data.accessList,null,2))
+        countSuccessResponse('warmup-access-list', 'success TBD')     
       }
-    } catch (e) {
-      console.log(`Error while making an eth call`, e)
-      //logEventEmitter.emit('fn_end', ticket, { success: false }, performance.now())
-      //callback(errorBusy)
+    } catch (e: any) {
+      if(verboseAALG) console.log(`Error while making an eth call `, e.message)
       countFailedResponse('warmup-access-list', 'exception in /contract/accesslist')
-      console.log('warmup-access-list', 'exception in /contract/accesslist', e) 
+      if(verboseAALG) console.log('warmup-access-list', 'exception in /contract/accesslist', e, txHash) 
     }
 
-    if(accessList != null){
-      warmupList = { accessList: accessList.accessList, codeHashes: accessList.codeHashes}
-      countSuccessResponse('warmup-access-list', 'usingWarmup', `accessList ${warmupList.accessList.length} codeHashes ${warmupList.codeHashes.length}`) 
-      usingWarmup = true
+    if(accessListResp != null){
+      warmupList = { accessList: accessListResp.accessList, codeHashes: accessListResp.codeHashes}
+      usingWarmup = true   
+      if(verboseAALG){   
+        console.log('warmup-access-list', txHash)
+        if (verbose) console.log('warmup-access-list accessList: ', JSON.stringify(accessListResp,null,2))
+        if (verbose) console.log('warmup-access-list warmupList: ', JSON.stringify(warmupList,null,2))
+        console.log('warmup-access-list', 'usingWarmup', `accessList ${warmupList.accessList?.length} codeHashes ${warmupList.codeHashes?.length}`) 
+      }
     }    
   }
-
 
   let  injectEndpoint = `inject`
   let  injectPayload = tx
@@ -524,19 +520,17 @@ async function injectAndRecordTx(
     injectPayload = {tx, warmupList}
   }
 
-  console.log('inject', injectEndpoint, 'usingWarmup', usingWarmup)
+  if(verboseAALG) console.log('inject', injectEndpoint, 'usingWarmup', usingWarmup)
 
   return new Promise((resolve, reject) => {
     axios
       .post(`${baseUrl}/${injectEndpoint}`, injectPayload)
       .then((response) => {
         const injectResult: InjectResponse = response.data
-
         if (injectResult && injectResult.success === false) {
           if (injectResult.reason.includes('Transaction nonce')) {
             nonceFailCount += 1
           }
-
           countInjectTxRejections(injectResult.reason)
         }
         const totalTime = Date.now() - startTime
@@ -1555,7 +1549,8 @@ export const methods = {
           }
           return res
         })
-        .catch((e) => {
+        .catch((e:any) => {
+          console.log('inject raw ', e.message, e.stack)
           logEventEmitter.emit(
             'fn_end',
             ticket,
@@ -1576,12 +1571,12 @@ export const methods = {
 
           // Return if transaction was successful or if cache is disabled
           if (config.gasEstimateUseCache === false) {
-            throw new Error('Verification not required: gas cache is disabled')
+            throw new Error('Verification not required: gas cache is disabled' + JSON.stringify(res))
           }
 
           // Return if transaction was not injected
           if (!res || res.success !== true) {
-            throw new Error('Gas verification error: Unable to determine inject response')
+            throw new Error('Gas verification error: Unable to determine inject response ' + res?.reason)
           }
 
           const transaction = getTransactionObj(tx)
