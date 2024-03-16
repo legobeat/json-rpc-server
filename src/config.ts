@@ -55,6 +55,11 @@ type Config = {
   secret_key: string
   nonceValidate: boolean
 
+  blockCacheSettings: {
+    lastNBlocksSize: number
+    lruMBlocksSize: number
+  }
+
   /**
    * Consensor(node) do reject transaction with higher nonce than the correct one.
    * This value control whether rpc take knowledge of it and let the client know if the tx is rejected.
@@ -63,7 +68,7 @@ type Config = {
   adaptiveRejection: boolean
   filterDeadNodesFromArchiver: boolean
   verbose: boolean
-  firstLineLogs: boolean 
+  firstLineLogs: boolean
 
   dashboard: {
     enabled: boolean
@@ -147,6 +152,12 @@ export const CONFIG: Config = {
   filterDeadNodesFromArchiver: false,
   verbose: false,
   firstLineLogs: true, // default is true and turn off for prod for perf
+
+  blockCacheSettings: {
+    lastNBlocksSize: Number(process.env.LAST_N_BLOCKS_SIZE) || 100,
+    lruMBlocksSize: Number(process.env.LRU_M_BLOCKS_SIZE) || 100,
+  },
+
   dashboard: {
     enabled: true,
     // relative path will work but absolute path is recommended
