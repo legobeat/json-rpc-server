@@ -162,48 +162,40 @@ type Tx = readableTransaction & {
   gasLimit: string
 }
 
-type TxParam =
-  | {
-      readableReceipt: Tx
-      txHash?: string
-      transactionType?: string | number
-    }
-  | {
-      wrappedEVMAccount: {
-        readableReceipt: Tx
-        txHash: string
-      }
-    }
+type TxParam = {
+  readableReceipt: Tx
+  txHash?: string
+  transactionType?: string | number
+}
 
 function extractTransactionObject(
   bigTransaction: TxParam,
   transactionIndexArg?: number
 ): readableTransaction | null {
   if (bigTransaction) {
-    const tx = 'wrappedEVMAccount' in bigTransaction ? bigTransaction.wrappedEVMAccount : bigTransaction
+    const receipt = bigTransaction.readableReceipt ? bigTransaction : null
+    if (receipt == null) return null
     return {
-      blockHash: tx.readableReceipt.blockHash,
-      blockNumber: tx.readableReceipt.blockNumber,
-      from: tx.readableReceipt.from,
-      gas:
-        '0x' +
-        (hexStrToInt(tx.readableReceipt.gasUsed) + hexStrToInt(tx.readableReceipt.gasRefund)).toString(),
-      gasPrice: tx.readableReceipt.gasPrice,
+      blockHash: receipt.readableReceipt.blockHash,
+      blockNumber: receipt.readableReceipt.blockNumber,
+      from: receipt.readableReceipt.from,
+      gas: receipt.readableReceipt.gasUsed === '0x' ? '0x0' : receipt.readableReceipt.gasUsed,
+      gasPrice: receipt.readableReceipt.gasPrice,
       maxFeePerGas: undefined,
       maxPriorityFeePerGas: undefined,
-      hash: tx.txHash || tx.readableReceipt.transactionHash || '',
-      input: tx.readableReceipt.data || '',
-      nonce: tx.readableReceipt.nonce,
-      to: tx.readableReceipt.to,
+      hash: receipt.txHash || receipt.readableReceipt.transactionHash || '',
+      input: receipt.readableReceipt.data || '',
+      nonce: receipt.readableReceipt.nonce,
+      to: receipt.readableReceipt.to,
       transactionIndex: transactionIndexArg
         ? '0x' + transactionIndexArg.toString(16)
-        : tx.readableReceipt.transactionIndex,
-      value: tx.readableReceipt.value,
-      type: tx.readableReceipt.type,
-      chainId: tx.readableReceipt.chainId,
-      v: tx.readableReceipt.v,
-      r: tx.readableReceipt.r,
-      s: tx.readableReceipt.s,
+        : receipt.readableReceipt.transactionIndex,
+      value: receipt.readableReceipt.value,
+      type: receipt.readableReceipt.type,
+      chainId: receipt.readableReceipt.chainId,
+      v: receipt.readableReceipt.v,
+      r: receipt.readableReceipt.r,
+      s: receipt.readableReceipt.s,
     }
   }
 
@@ -232,7 +224,9 @@ function extractTransactionReceiptObject(
   transactionIndexArg?: number
 ): ReceiptObject | null {
   if (bigTransaction) {
-    const tx = 'wrappedEVMAccount' in bigTransaction ? bigTransaction.wrappedEVMAccount : bigTransaction
+    const tx = 'readableReceipt' in bigTransaction ? bigTransaction : null
+
+    if (tx == null) return null
 
     const txType = 'transactionType' in bigTransaction ? bigTransaction.transactionType : undefined
 
