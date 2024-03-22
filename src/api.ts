@@ -482,6 +482,7 @@ async function injectAndRecordTx(
     // get access list to use as warmupdata 
     let nodeUrl
     let accessListResp = null
+    const startTime = Date.now()
     try {
       const callObj = tx
       const res = await requestWithRetry(RequestMethod.Post, `/contract/accesslist`, callObj)
@@ -505,7 +506,7 @@ async function injectAndRecordTx(
       warmupList = { accessList: accessListResp.accessList, codeHashes: accessListResp.codeHashes}
       usingWarmup = true   
       if(verboseAALG){   
-        console.log('warmup-access-list', txHash)
+        console.log('warmup-access-list', txHash, 'req duration', Date.now() - startTime)
         if (verbose) console.log('warmup-access-list accessList: ', JSON.stringify(accessListResp,null,2))
         if (verbose) console.log('warmup-access-list warmupList: ', JSON.stringify(warmupList,null,2))
         console.log('warmup-access-list', 'usingWarmup', `accessList ${warmupList.accessList?.length} codeHashes ${warmupList.codeHashes?.length}`) 
@@ -520,7 +521,7 @@ async function injectAndRecordTx(
     injectPayload = {tx, warmupList}
   }
 
-  if(verboseAALG) console.log('inject', injectEndpoint, 'usingWarmup', usingWarmup)
+  if(verboseAALG) console.log('inject', injectEndpoint, 'warmup-access-list', usingWarmup)
 
   return new Promise((resolve, reject) => {
     axios
@@ -1759,6 +1760,12 @@ export const methods = {
         //callback(null, errorHexStatus)
         callback(errorBusy)
         countFailedResponse(api_name, 'contract/call returned null')
+
+        // add this in to catch contract call failures
+        // console.log(`
+        // ############# contract/call returned null  ${nodeUrl}
+        // `)
+
         logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: false }, performance.now())
         return
       }
