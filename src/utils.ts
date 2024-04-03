@@ -190,11 +190,6 @@ async function getArchiverStats(): Promise<ArchiverStat[]> {
   return Promise.all(counters)
 }
 
-export async function waitRandomSecond(): Promise<void> {
-  if (verbose) console.log(`Waiting before trying a different node`) // we don't need to wait here but doesn't hurt to wait a bit for perf
-  await sleep(200)
-}
-
 // TODO: check what happens if theres no type assertion
 function getTimeout(route: string): number {
   // const root = route.split('//')[1] ? route.split('//')[1].split('/')[1].split('?')[0] : null
@@ -270,6 +265,9 @@ export async function requestWithRetry(
         return res //break
       } else if (res.data.error === 'node close to rotation edges') {
         console.log(`${nodeUrl} Node is close to rotation edges. Changing node...`)
+        if (config.removeEdgeNodeAfterDetection && nodeIpPort) {
+          removeFromNodeList(nodeIpPort)
+        }
       }
     } catch (e: unknown) {
       if (verbose && verboseRequestWithRetry) console.log('Error: requestWithRetry', e, (e as Error).message)
@@ -277,16 +275,16 @@ export async function requestWithRetry(
       const shouldAddToBadNodeList = route.includes('eth_blockNumber')
       if (verboseRequestWithRetry) console.log(
         `FAIL:     route: ${route}`,
-        `shouldAddToBadNodeList: ${shouldAddToBadNodeList}`,
-        'badNodePercentage',
-        badNodePercentage,
-        'bad node count',
-        badNodesMap.size,
-        'timeout',
-        timeout,
-        //@ts-ignore
-        e?.message
-      )
+          `shouldAddToBadNodeList: ${shouldAddToBadNodeList}`,
+          'badNodePercentage',
+          badNodePercentage,
+          'bad node count',
+          badNodesMap.size,
+          'timeout',
+          timeout,
+          //@ts-ignore
+          e?.message
+        )
       if (shouldAddToBadNodeList && nodeIpPort && badNodePercentage < 2 / 3) {
         // don't add to bad list if 2/3 of nodes are already bad
         badNodesMap.set(nodeIpPort, Date.now())
@@ -296,12 +294,17 @@ export async function requestWithRetry(
 
     if (retry <= maxRetry) {
       if (verbose) console.log('Node is busy...will try again to another node in a few seconds')
-      await waitRandomSecond()
     } else {
       if (verbose) console.log('Node is busy...out of retries')
     }
   }
   return { data: { nodeUrl } }
+}
+
+function removeFromNodeList(nodeIpPort: string): void {
+  const nodeIndex = nodeList.findIndex((node) => `${node.ip}:${node.port}` === nodeIpPort)
+  nodeList.splice(nodeIndex, 1)
+  console.log(`Removed node ${nodeIpPort} from nodeList`)
 }
 
 export function getTransactionObj(tx: OriginalTxData): Transaction | AccessListEIP2930Transaction {

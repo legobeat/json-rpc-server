@@ -100,11 +100,15 @@ type Config = {
    * and consider all nodes from the nodelist
    */
   rotationEdgeToAvoid?: number
+
+  /** Set this when running a local network.
+   * It will add a node that determines itself as an edge so that other requests are not sent to it.
+   * This is useful for preventing nonce issues.
+   */
+  removeEdgeNodeAfterDetection: boolean
 }
 
 export type ServicePointTypes = 'aalg-warmup'
-
-
 
 export const CONFIG: Config = {
   websocket: {
@@ -192,4 +196,5 @@ export const CONFIG: Config = {
     ['aalg-warmup']: 20,
   },
   rotationEdgeToAvoid: 3,
+  removeEdgeNodeAfterDetection: false,
 }
