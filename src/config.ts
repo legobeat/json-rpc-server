@@ -90,6 +90,7 @@ type Config = {
     enabled: boolean
     serviceValidatorUrl: string
   }
+  enableBlockCache: boolean
 }
 
 export const CONFIG: Config = {
@@ -173,4 +174,5 @@ export const CONFIG: Config = {
     enabled: false,
     serviceValidatorUrl: 'http://0.0.0.0:9001',
   },
+  enableBlockCache: false
 }
