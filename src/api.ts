@@ -473,8 +473,8 @@ async function injectWithRetries(txHash: string, tx: any, args: any, retries = c
     result = await injectAndRecordTx(txHash, tx, args)
     if (result.success) {
       return result
-    } else if (result.reason === 'Node is too close to rotation edges. Inject to another node') {
-      console.log('Node is close to rotation edges. Rotating node...')
+    } else if (result.reason === 'Node is possibly not in sync. Inject to another node') {
+      console.log('Node is possibly not in sync. Rotating node...')
       if (result.nodeUrl) {
         const urlParts = result.nodeUrl.split(':')
         removeFromNodeList(urlParts[0], urlParts[1])
