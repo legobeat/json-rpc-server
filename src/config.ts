@@ -71,6 +71,7 @@ type Config = {
   filterDeadNodesFromArchiver: boolean
   verbose: boolean
   firstLineLogs: boolean
+  timeBasedLogs: boolean
   verboseRequestWithRetry: boolean
   verboseAALG: boolean
 
@@ -175,6 +176,7 @@ export const CONFIG: Config = {
   verboseRequestWithRetry: false,
   verboseAALG: false,
   firstLineLogs: true, // default is true and turn off for prod for perf
+  timeBasedLogs: true,
 
   blockCacheSettings: {
     lastNBlocksSize: Number(process.env.LAST_N_BLOCKS_SIZE) || 100,

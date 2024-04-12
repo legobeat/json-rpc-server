@@ -262,7 +262,7 @@ class Collector extends BaseExternal {
 
     if (CONFIG.enableBlockCache && blockSearchValue !== 'latest') {
       //instead of look up by key we need to give the inp type and block
-      let cachedBlock = this.blockCacheManager.get(blockSearchValue, blockSearchType)
+      const cachedBlock = this.blockCacheManager.get(blockSearchValue, blockSearchType)
 
       //should we retry for tranactions if there are not any??
       if (cachedBlock) {
@@ -278,6 +278,7 @@ class Collector extends BaseExternal {
       let blockQuery
       //Note:  the latest / earlier tags actually get passed through numberHex or hash and the collector api will sort that out
       //       it seems that if tag is used that will also look up by hash which is fine based on how the collector handles this endpoint
+      const startBlockQuery = Date.now()
       if (blockSearchType === 'hex_num') {
         // int to hex
         blockQuery = `${this.baseUrl}/api/blocks?numberHex=${blockSearchValue}`
@@ -287,21 +288,31 @@ class Collector extends BaseExternal {
       /* prettier-ignore */ if (verbose) console.log(`Collector: getBlock blockQuery: ${blockQuery}`)
 
       const response = await axios.get(blockQuery).then((response) => response.data)
+      if (CONFIG.timeBasedLogs)
+        if (this.pendingRequests.has(`${blockSearchValue} ${blockSearchType}`)) {
+          console.log('TIME-LOG: First Blocks Query took: ', (Date.now() - startBlockQuery) / 1_000)
+        } else {
+          console.log('TIME-LOG: Blocks Query took: ', (Date.now() - startBlockQuery) / 1_000)
+        }
       if (!response.success) return null
 
       const { readableBlock, number } = response
       const blockNumber = number
-      let resultBlock = readableBlock
+      const resultBlock = readableBlock
 
-
-      // if blockSearchValue is latest we still had to look it up above, but once we have the 
-      // block we can see if we have a niced cached version of it that will have all of the transactions 
+      // if blockSearchValue is latest we still had to look it up above, but once we have the
+      // block we can see if we have a niced cached version of it that will have all of the transactions
       if (CONFIG.enableBlockCache && blockSearchValue === 'latest' && resultBlock != null) {
-        //look it up by hash 
+        //look it up by hash
+        const startCacheTime = Date.now()
         const cachedBlock = this.blockCacheManager.get(resultBlock.hash, 'hash')
         if (cachedBlock) {
           nestedCountersInstance.countEvent('blockcache', `hit latest`)
-          if (details === false) return this.mutateTxField(resultBlock)
+          if (details === false) {
+            if (CONFIG.timeBasedLogs)
+              console.log('TIME-LOG: Cache Fetch: ', (Date.now() - startCacheTime) / 1_000)
+            return this.mutateTxField(resultBlock)
+          }
           return cachedBlock
         } else {
           nestedCountersInstance.countEvent('blockcache', `miss latest`)
@@ -310,9 +321,13 @@ class Collector extends BaseExternal {
 
       const txQuery = `${this.baseUrl}/api/transaction?blockNumber=${blockNumber}`
 
+      const startTxsQuery = Date.now()
       resultBlock.transactions = await axios
         .get(txQuery)
         .then((response) => {
+          if (CONFIG.timeBasedLogs && this.pendingRequests.has(`${blockSearchValue} ${blockSearchType}`))
+            console.log('TIME-LOG: First Txns API Query took: ', (Date.now() - startTxsQuery) / 1_000)
+
           if (!response.data.success) return []
           return response.data.transactions.map((tx: any) => {
             //need to review the safety of this for caching and support that this could change!
@@ -325,7 +340,11 @@ class Collector extends BaseExternal {
           console.error('collector.getBlock could not get txs for the block', e)
           return []
         })
-      
+
+      if (CONFIG.timeBasedLogs && this.pendingRequests.has(`${blockSearchValue} ${blockSearchType}`)) {
+        console.log('TIME-LOG: First Txs Decode Query took: ', (Date.now() - startTxsQuery) / 1_000)
+      }
+
       if (CONFIG.enableBlockCache)
         this.blockCacheManager.update(blockSearchValue, blockSearchType, resultBlock)
       //if we dont need details we must adjust the return value that we got from cache
@@ -346,8 +365,10 @@ class Collector extends BaseExternal {
    * This function replaces the transaction details with transaction hashes when details are not required (details = false)
    */
   mutateTxField = (block: readableBlock): readableBlock => {
+    const start = Date.now()
     const blockData = { ...block }
     blockData.transactions = blockData.transactions.map((tx: any) => tx.hash)
+    if (CONFIG.timeBasedLogs) console.log('TIME-LOG: Mutate tx took: ', (Date.now() - start) / 1_000)
     return blockData
   }
 

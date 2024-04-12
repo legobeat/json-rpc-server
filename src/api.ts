@@ -1962,6 +1962,7 @@ export const methods = {
     countSuccessResponse(api_name, 'success', 'TBD')
   },
   eth_getBlockByNumber: async function (args: RequestParamsLike, callback: JSONRPCCallbackTypePlain) {
+    const start = Date.now()
     const api_name = 'eth_getBlockByNumber'
     nestedCountersInstance.countEvent('endpoint', api_name)
     if (!ensureArrayArgs(args, callback)) {
@@ -1999,6 +2000,7 @@ export const methods = {
     }
     if (verbose) console.log('BLOCK DETAIL', result)
     //pushed this functionality back to getblock()
+    if (CONFIG.timeBasedLogs) console.log('MASTER TIME-LOG: ', (Date.now() - start) / 1000)
     callback(null, result)
     countSuccessResponse(api_name, 'success', 'TBD')
     logEventEmitter.emit('fn_end', ticket, { nodeUrl, success: result ? true : false }, performance.now())
