@@ -57,6 +57,22 @@ let lastBlockInfo = {
   blockNumber: lastCycleCounter,
   timestamp: '0x0',
 }
+let fakeRPCServer = true
+let totalInjectedTxs = 0
+let totalBalanceCalls = 0
+
+let firstTxInjectionTimestamp = 0
+let lastTxInjectionTimestamp = 0
+let timeElapsed = 0
+let TPS = 0
+
+// update the TPS every 5s based on the first and last injection timestamps and time elapsed
+setInterval(() => {
+  timeElapsed = lastTxInjectionTimestamp - firstTxInjectionTimestamp
+  TPS = totalInjectedTxs / (timeElapsed / 1000)
+  // log the tps calculation detail
+  console.log(`TPS: ${TPS}, totalInjectedTxs: ${totalInjectedTxs}, timeElapsed: ${timeElapsed}`)
+}, 5000)
 
 //const errorHexStatus: string = '0x' //0x0 if you want an error! (handy for testing..)
 const errorCode = 500 //server internal error
@@ -928,6 +944,15 @@ export const methods = {
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
     /* prettier-ignore */ if (firstLineLogs) { console.log('Running eth_gasPrice', args) }
 
+    // return fake gasPrice
+    if (fakeRPCServer) {
+      const result = '0x3f84fc7516' // 1 Gwei
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, result)
+      countSuccessResponse(api_name, 'success')
+      return
+    }
+
     const gasPrice = await serviceValidator.getGasPrice()
     if (gasPrice) {
       logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
@@ -1006,6 +1031,14 @@ export const methods = {
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
     /* prettier-ignore */ if (firstLineLogs) { console.log('Running eth_getBalance', args) }
+    if (fakeRPCServer) {
+      // return fake 100 SHM balance
+      let balance = '0x56bc75e2d63100000'
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      totalBalanceCalls++
+      callback(null, balance)
+      return
+    }
 
     let address
     let blockNumber
@@ -1184,6 +1217,14 @@ export const methods = {
       .digest('hex')
     logEventEmitter.emit('fn_start', ticket, api_name, performance.now())
     /* prettier-ignore */ if (firstLineLogs) { console.log('Running getTransactionCount', args) }
+
+    if (fakeRPCServer) {
+      // return fake 100 SHM balance
+      let nonce = '0x0'
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      callback(null, nonce)
+      return
+    }
 
     let address
     let blockNumber
@@ -1538,6 +1579,23 @@ export const methods = {
       console.log('Sending raw tx to /inject endpoint', new Date(now), now)
       console.log('Running sendRawTransaction', args)
     }
+
+    if (fakeRPCServer) {
+      const raw = args[0]
+      let tx = {
+        raw,
+      }
+      const transaction = getTransactionObj(tx)
+      let txHash = bufferToHex(transaction.hash())
+      // let txHash = '0x' + crypto.randomBytes(32).toString('hex')
+      logEventEmitter.emit('fn_end', ticket, { success: true }, performance.now())
+      totalInjectedTxs++
+      if (firstTxInjectionTimestamp === 0) firstTxInjectionTimestamp = now
+      lastTxInjectionTimestamp = now
+      // console.log('txHash', txHash)
+      return callback(null, txHash)
+    }
+
     let nodeUrl: string | undefined | Promise<string>
     let txHash = ''
     let gasLimit = ''
@@ -1660,7 +1718,7 @@ export const methods = {
           console.log(`Gas verification error: ${e.message}`)
         })
     } catch (e: unknown) {
-      console.log(`Error while injecting tx to consensor`, e)
+      // console.log(`Error while injecting tx to consensor`, e)
       const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred'
       logEventEmitter.emit(
         'fn_end',

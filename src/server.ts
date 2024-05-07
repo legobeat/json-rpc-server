@@ -68,12 +68,12 @@ if (myArgs.length > 0) {
 
 export const ipport = CONFIG.ip + '__' + CONFIG.port
 //maybe catch unhandled exceptions?
-process.on('uncaughtException', (err) => {
-  console.log('uncaughtException:' + err)
-})
-process.on('unhandledRejection', (err) => {
-  console.log('unhandledRejection:' + err)
-})
+// process.on('uncaughtException', (err) => {
+//   console.log('uncaughtException:' + err)
+// })
+// process.on('unhandledRejection', (err) => {
+//   console.log('unhandledRejection:' + err)
+// })
 
 app.set('trust proxy', true)
 app.use(cors({ methods: ['POST'] }))
@@ -209,11 +209,11 @@ setupArchiverDiscovery({
     setConsensorNode()
     initSyncTime()
     updateEdgeNodeConfig()
-    setInterval(updateNodeList, config.nodelistRefreshInterval)
-    setInterval(saveTxStatus, 5000)
-    setInterval(checkArchiverHealth, 60000)
-    setInterval(cleanBadNodes, 60000)
-    setInterval(updateEdgeNodeConfig, 60000 * 5)
+    // setInterval(updateNodeList, config.nodelistRefreshInterval)
+    // setInterval(saveTxStatus, 5000)
+    // setInterval(checkArchiverHealth, 60000)
+    // setInterval(cleanBadNodes, 60000)
+    // setInterval(updateEdgeNodeConfig, 60000 * 5)
     extendedServer.listen(port, function () {
       console.log(`JSON RPC Server listening on port ${port} and chainId is ${chainId}.`)
       setupDatabase()

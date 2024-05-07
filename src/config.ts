@@ -167,7 +167,7 @@ export const CONFIG: Config = {
   verbose: false,
   verboseRequestWithRetry: false,
   verboseAALG: false,
-  firstLineLogs: true, // default is true and turn off for prod for perf
+  firstLineLogs: false, // default is true and turn off for prod for perf
 
   blockCacheSettings: {
     lastNBlocksSize: Number(process.env.LAST_N_BLOCKS_SIZE) || 100,
