@@ -443,16 +443,13 @@ export function getRandomConsensorNode(): Node | null {
 }
 
 /**
- * Round robin selection of next consensor index.
+ * Randomly selects the next consensor node.
  * @returns
  */
 export function getNextConsensorNode(): Node | null {
   if (nodeList.length > 0) {
-    nextIndex++
-    if (nextIndex >= nodeList.length) {
-      nextIndex = 0
-    }
-    return nodeList[nextIndex] // eslint-disable-line security/detect-object-injection
+    const randomIndex = Math.floor(Math.random() * nodeList.length)
+    return nodeList[randomIndex] // eslint-disable-line security/detect-object-injection
   }
   return null
 }
