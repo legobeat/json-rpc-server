@@ -74,7 +74,8 @@ const prepareSQLFilters = ({
   //   sql += `AND timestamp between ${start} AND ${end} `
   // }
   if (id) {
-    sql += `AND id = ${id} `
+    const idStr = sanitizeSqlPayload(id.toString())
+    sql += `AND id = ${idStr} `
   }
   if (hash) {
     hash = sanitizeSqlPayload(hash)
@@ -97,13 +98,16 @@ const prepareSQLFilters = ({
     sql += `AND reason LIKE '%${reason}%' `
   }
   if (injected) {
-    sql += `AND injected = ${injected} `
+    const injectedStr = sanitizeSqlPayload(injected.toString())
+    sql += `AND injected = ${injectedStr} `
   }
   if (accepted) {
-    sql += `AND accepted = ${accepted} `
+    const acceptedStr = sanitizeSqlPayload(accepted.toString())
+    sql += `AND accepted = ${acceptedStr} `
   }
   if (success) {
-    sql += `AND success = ${success} `
+    const successStr = sanitizeSqlPayload(success.toString())
+    sql += `AND success = ${successStr} `
   }
   if (api_name) {
     api_name = sanitizeSqlPayload(api_name)
