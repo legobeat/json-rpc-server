@@ -92,7 +92,7 @@ describe('JSON-RPC Methods - Missing/Invalid Properties', () => {
                 .post('/')
                 .send({
                     jsonrpc: '2.0',
-                    id: 'invalid_id',
+                    id: 'invalid_id', // id should be a number
                     method: 'eth_gasPrice',
                     params: []
                 });
